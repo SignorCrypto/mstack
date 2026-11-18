@@ -1,6 +1,6 @@
 ---
 name: call-codex
-description: How to call Codex (Sol by default, Astra only on request; ids resolved live from the Codex catalog) from Claude Code - which model when, the exact commands for investigation, implementation, review, and image generation (latest ChatGPT Images model via subscription), background runs, sandbox limits, and what never to use. Single source of truth for Codex calls. Load it before ANY Codex call, from any skill, agent, or workflow.
+description: How to call Codex from Claude Code (model ids resolved live from the Codex catalog; which model to use is CLAUDE.md's call) - the exact commands for investigation, implementation, review, and image generation (latest ChatGPT Images model via subscription), background runs, sandbox limits, and what never to use. Single source of truth for Codex calls. Load it before ANY Codex call, from any skill, agent, or workflow.
 argument-hint: "[sol|astra] <task, or 'review' / 'adversarial-review' / 'image'>"
 ---
 
@@ -16,25 +16,14 @@ C="$HOME/.claude/skills/call-codex/codex-companion.mjs"
 
 ## Models
 
-| family | role |
-|--------|------|
-| `sol` | **the default for every Codex call** (investigation, review, smoke tests) |
-| `astra` | opt-in only: never chosen on your own initiative |
-
-Codex does not implement by default: Opus does (see CLAUDE.md). **Astra never implements**: it is read-only (investigation, review).
-
-**Always use `sol`**, whatever the task touches (money, auth, migrations, concurrency, size, difficulty: none of these is a reason to switch). Use `astra` only when:
-1. the user explicitly asks for it in this conversation, or
-2. a `sol` result on this same task was concretely insufficient (name what was missing); then rerun once with `astra` and say so in the report.
-
-A skill or memory suggesting `astra` does not count as the user asking.
+Which model to call, and for what, is set by CLAUDE.md; this file only says how. With no `--model`, the launcher uses `sol`.
 
 To see the live catalog (ids, context, reasoning levels): `python3 ~/.claude/skills/call-codex/models.py`. If the catalog shows a family's role no longer fits (e.g. descriptions change), tell the user.
 
 ## What the launcher does
 
 - **Model**: `sol` unless `--model` says otherwise. `--model` takes a family (`sol`, `astra`) or an exact id; it is resolved live from the Codex catalog, and an unknown name or unreadable catalog is an error, never a guess.
-- **Fast tier** (2x speed, more subscription usage): on for `sol`, off for anything else. `--no-fast` turns it off, `--fast` turns it on for `astra` (only when the user asks). `config.toml` keeps `service_tier = "default"`, so interactive Codex is unaffected.
+- **Fast tier** (2x speed, more subscription usage): on for `sol`, off for anything else. `--no-fast` turns it off, `--fast` turns it on for the others. `config.toml` keeps `service_tier = "default"`, so interactive Codex is unaffected.
 - **Effort**: `high` on tasks and reviews alike, never `config.toml`'s value (Codex Desktop rewrites it). Pass `--effort <none|minimal|low|medium|high|xhigh>` only if the user asks for another level.
 - **Refuses**: `--background` (it needs a polling loop), `--write` with `astra`, and a `task` without `--prompt-file` or a prompt (also with `--resume-last`): the launcher never reads stdin.
 - **Reviews are persistent** (`ephemeral: false`), so Codex saves the full session (prompts, responses, token usage) in its logs and AgentBar counts it.
@@ -57,7 +46,7 @@ Every call: run it at parent level with Bash `run_in_background: true` (you are 
 node "$C" task --fresh --prompt-file <scratchpad>/prompt.md
 ```
 
-**Implementation, migrations, tests**: only when the user explicitly asks Codex to write code, and only with `sol`: same command plus `--write`. One task per disjoint file area (list the owned paths explicitly; parallel tasks in one worktree only if their file sets do not overlap), a self-contained prompt with the exact verify commands and a JSON summary format. Then verify the result yourself (diff, typecheck, tests, build): Codex's self-report is optimistic.
+**Implementation, migrations, tests**: only when the user explicitly asks Codex to write code: same command plus `--write` (refused with `astra`). One task per disjoint file area (list the owned paths explicitly; parallel tasks in one worktree only if their file sets do not overlap), a self-contained prompt with the exact verify commands and a JSON summary format. Then verify the result yourself (diff, typecheck, tests, build): Codex's self-report is optimistic.
 
 `--resume-last` continues the previous task in this repo instead of `--fresh` (still with a prompt).
 
