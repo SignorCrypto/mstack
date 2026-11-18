@@ -2,7 +2,8 @@
 
 A local stdio MCP server with one tool, `Evaluate`: fast, cheap judgments (yes/no probability, choice,
 score) over evidence the agent supplies, from a decision model you choose. Inference happens at the
-provider; the server never reads files or web pages.
+provider. The server reads no web pages and only one kind of file: an `items_file` in a temp directory,
+under the rules in [Items mode](#items-mode).
 
 Default: Jev through Vercel AI Gateway, routed only to upstreams with zero data retention.
 
@@ -68,6 +69,58 @@ The server looks for a provider's key in this order:
 
 Keys are never tool arguments, and the config refuses plain keys.
 
+## Items mode
+
+To label a collection through `state`, an agent has to read every item and then copy it into the call,
+which costs more than reading the items itself. Items mode asks the same questions of each item and
+keeps the collection out of the agent's context:
+
+```json
+{ "items_file": "/tmp/errors.log", "dedupe": "normalized", "context": "Production log lines from …",
+  "questions": { "severity": { "type": "choice", "instructions": "How severe is …?", "criteria": { … } } } }
+```
+
+- **Sources:** `items_file` (`.jsonl`/`.ndjson`, a `.json` array, or any text file with one item per
+  line) or `items` (an inline array). Ids are an object's `id` field as a string (not sent), else the line
+  number (array position for `.json`) as a number.
+- **Grouping:** `dedupe: "exact"` (default) evaluates identical items once. `"normalized"` also groups
+  items that differ only in dates and times, UUIDs, hex, the id part of prefixed ids (`evt_1Q…`, prefix
+  kept) and numbers; a standalone `0` (`0 rows`), id prefixes and the structure are kept. The first real
+  item of a group is sent and its answer covers the group; `results_file` lists up to 3 `variants` per
+  group. When another number decides the answer (HTTP status, a size against a limit), use `exact` or
+  group with your own key. On 400 production-like log lines: 30 groups, 1.5 s, 14k tokens, against
+  `exact` 400 requests, 9 s, 189k tokens.
+- **Work:** distinct items are packed about 10 per request (packing thresholds: 50 questions and 24k
+  characters of item JSON; an item that does not fit goes alone; the provider's token budget applies to
+  the whole request), each question asked once per item under `items.item_N`.
+  Measured on 298 support messages: 1.6 s and 129k input tokens, against 5 s and 200k with one item per
+  request, at the same accuracy (96%; 98% identical labels); on 400 normalized log lines 7k tokens
+  instead of 14k. A batch the provider refused without processing it (HTTP 400/413/422, not billed) goes back in the
+  queue as single items; a dropped connection or a rate limit is not resent item by item, since that
+  request may have been processed and billed. `usage` sums accepted responses; `metadata.requests`
+  counts the requests the server started (transport retries on 429/529 inside one request are not
+  counted). Requests go one at a
+  time until one succeeds (at most 5, each with the retry policy below: a provider that fails every
+  request gets 5, not 50), then 20 in parallel (400 requests at
+  20 drew no rate limit). At most 500 distinct items and a 50 s budget from the start of the call
+  (reading included), under Codex's default 60 s tool timeout; items not reached are `skipped`. An error
+  whose cause is not the evidence (key, config, HTTP 401/402/403/404) is typed fatal where it is raised
+  and stops the call; any other error is recorded on its item. When no item succeeds the call is an
+  error that says how many failed, how many were not sent, and why it stopped. Errors name items by
+  their source position (`line 12`), never by their id.
+- **Result:** per-question `counts` (items, duplicates included), `uncertain_ids` (Noul between 0.3 and
+  0.7, TypeSafe's suggested band; Choice/Score confidence below 0.5; first 50, `uncertain_total` beyond), inline `results` up to 20
+  distinct items, and `results_file`: JSONL in the temp directory (mode 0600), one line per group with
+  `ids`, `item`, full `answers` (or `error` / `skipped`). One provider config per call. Progress
+  notifications are sent when the client asks for them.
+- **Which files:** only an absolute path in the temp directories (`/tmp`, `$TMPDIR`) or a directory the
+  user lists in `DECISION_MODEL_ALLOWED_DIRS` (path-separated) in the server environment. Not the
+  project: a file there is copied or extracted to `/tmp` first, a deliberate act, so a path slipped into a
+  prompt cannot point the tool at a secret. Symlinks are resolved, the checked file is the one read
+  (same inode, no symlink at the last step), non-regular files and files over 10 MB are refused.
+- **Credentials:** in both modes, evidence matching a credential shape (private key, AWS, GitHub, `sk-`,
+  Stripe live, Slack, Vercel keys, JWTs) is refused before anything is sent, every group member included.
+
 ## Reference
 
 **Result:** per question `noul` (probability of yes), `choice` (+ distribution, confidence) or `score`
@@ -76,7 +129,7 @@ Keys are never tool arguments, and the config refuses plain keys.
 upstream the gateway reports), `elapsed_ms`, `attempts`. How to ask well: the `decision-model` skill.
 
 **Limits:** context depends on the model (Jev: 64k tokens, 32k for state + longest question); 2 MB per
-request locally, never truncated. 45 s per call; up to three attempts on 429/529 within the deadline; no
+request locally, never truncated. 45 s per request, key lookup included (items mode: 50 s per call); up to three attempts on 429/529 within the deadline; no
 retry on invalid requests or uncertain submissions.
 
 **Validation:** every judgment field is checked (ids, options, ranges, distributions). A gateway's

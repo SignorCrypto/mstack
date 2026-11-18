@@ -6,7 +6,13 @@ import { promisify } from 'node:util';
 // Service name in the OS secret store, shared by every provider; the account is the provider's key name.
 export const KEYCHAIN_SERVICE = 'decision-model';
 
-export class EvaluationError extends Error {}
+// fatal: the cause is not the evidence (key, config, account, credits, model), so every other request in
+// the same call would fail the same way. rejected: the provider refused this request without processing
+// it (400/413/422), so it is not billed and a smaller request may pass. Both are set where the cause is
+// known, never inferred from the message.
+export class EvaluationError extends Error {
+  constructor(message, { fatal = false, rejected = false } = {}) { super(message); this.fatal = fatal; this.rejected = rejected; }
+}
 
 const run = promisify(execFile);
 
@@ -77,5 +83,19 @@ function runKeyCommand(name, command) {
   return cache.get(id);
 }
 
+// The key and the cached read it came from (null when it is not from a key command), so a rejection
+// can invalidate exactly that read. getSecret runs the command synchronously up to its first await, so
+// the cache holds the entry it used.
+export function secretRead(name, command) {
+  const value = getSecret(name, command);
+  const entry = command && !process.env[name]?.trim() ? cache.get(`${command}\0${name}`) ?? null : null;
+  return { value, entry };
+}
+
 // After the provider rejects a key from a command (e.g. rotated), run the command again on next use.
-export const forgetSecret = (name, command) => { cache.delete(`${command}\0${name}`); };
+// By identity: only the read the rejected request used is dropped, so any number of 401s on one
+// rotation share one refresh, even when the refresh still returns the revoked key.
+export const forgetSecret = (name, command, entry) => {
+  const id = `${command}\0${name}`;
+  if (!entry || cache.get(id) === entry) cache.delete(id);
+};

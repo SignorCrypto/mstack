@@ -13,7 +13,7 @@ I think problem first, then logic: talk to me in those terms.
 
 ## Decision model
 
-When a collection needs repeated semantic classification or filtering, consider the decision model (`decision-model` MCP, `Evaluate`) before deeper analysis if it could reduce that work. Before calling it, load the `decision-model` skill; skip routine confirmations and deterministic checks.
+When a query, file or search gives you more free-text items than you want to read through (roughly 50+ distinct log or error messages, emails, tickets, comments, review findings, records), you can write them to a file in /tmp and have the decision model label them (`decision-model` MCP, `Evaluate` with `items_file`; load the `decision-model` skill first), then read only the shortlist. Your call: use it when the labels save you reading. Not for code search hits, already aggregated output, or your own decisions (diagnosis, fix, design, next step).
 
 ## Vercel
 
