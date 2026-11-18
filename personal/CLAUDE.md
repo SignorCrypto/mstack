@@ -20,7 +20,7 @@ Two tiers. Scores compare models within the same tier only.
 
 | model  | family | cost | intelligence | taste |
 |--------|--------|------|--------------|-------|
-| astra  | Codex  | 5    | 8            | 8     |
+| astra  | Codex  | 5    | 8            | 7     |
 | fable  | Claude | 2    | 9            | 9     |
 
 **Everyday** (default):
@@ -28,7 +28,7 @@ Two tiers. Scores compare models within the same tier only.
 | model  | family | cost | intelligence | taste |
 |--------|--------|------|--------------|-------|
 | opus   | Claude | 7    | 9            | 9     |
-| sol    | Codex  | 9    | 8            | 7     |
+| sol    | Codex  | 9    | 8            | 6     |
 | sonnet | Claude | 8    | 7            | 7     |
 | haiku  | Claude | 10   | 6            | 5     |
 
