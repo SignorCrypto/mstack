@@ -23,6 +23,8 @@ Two tiers. Scores compare models within the same tier only.
 | astra  | Codex  | 5    | 8            | 8     |
 | fable  | Claude | 2    | 9            | 9     |
 
+Astra verifies by running: it writes reproductions and stress tests, so it fits an adversarial review of concurrency, retry or money mechanisms. Limits: slow, its own notes overclaim, and it ranks its own work first.
+
 **Everyday** (default):
 
 | model  | family | cost | intelligence | taste |
@@ -32,8 +34,8 @@ Two tiers. Scores compare models within the same tier only.
 | sonnet | Claude | 8    | 7            | 7     |
 | haiku  | Claude | 10   | 6            | 5     |
 
-- Default roles: opus implements, sol reviews (a different family), astra takes the second review pass on concurrency, retry or money mechanisms (asked for failing reproductions). Exploration: sol for a few agents, a Haiku fleet for many. Fable is the advisor for judgment calls (plan, architecture, stuck root cause, UI/copy direction): consult it without asking, once per decision.
-- Otherwise go Frontier or swap in a smarter model (fable can also implement) only when I ask or a result fell concretely short: redo once and say so. Difficulty alone is no reason. On anything that ships: intelligence > taste > cost; user-facing work needs taste ≥ 7.
+- Default roles: opus implements, sol reviews (a different family). Exploration: sol for a few agents, a Haiku fleet for many. Fable is the advisor for judgment calls (plan, architecture, stuck root cause, UI/copy direction): consult it without asking, once per decision.
+- Go Frontier or swap in a smarter model (fable can also implement) only when I ask or a result fell concretely short: redo once and say so. Difficulty alone is no reason. On anything that ships: intelligence > taste > cost; user-facing work needs taste ≥ 7.
 - Before reporting delegated work as done, run the checks once yourself (typecheck, tests, build; the app for visual changes).
 - Calling Codex: in Claude Code, through the `call-codex` skill; under T3 Code, through T3's own delegation.
 
