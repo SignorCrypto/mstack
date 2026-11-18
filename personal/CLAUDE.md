@@ -23,7 +23,7 @@ Two tiers. Scores compare models within the same tier only.
 | astra  | Codex  | 5    | 8            | 8     |
 | fable  | Claude | 2    | 9            | 9     |
 
-Astra verifies by running: it writes reproductions and stress tests, so it fits an adversarial review of concurrency, retry or money mechanisms. Limits: slow, and meticulous without always hitting the point of the request (its notes can overclaim): weigh its output before acting on it.
+Astra: good at adversarial review of concurrency, retry and money mechanisms; meticulous but may miss the point of the request, so weigh its output.
 
 **Everyday** (default):
 
