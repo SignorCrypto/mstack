@@ -23,7 +23,7 @@ Two tiers. Scores compare models within the same tier only.
 | astra  | Codex  | 5    | 8            | 8     |
 | fable  | Claude | 2    | 9            | 9     |
 
-Astra: good at adversarial review of concurrency, retry and money mechanisms; meticulous but may miss the point of the request, so weigh its output.
+Astra: good at adversarial review; meticulous but may miss the point of the request, so weigh its output.
 
 **Everyday** (default):
 
