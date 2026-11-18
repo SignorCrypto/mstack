@@ -39,8 +39,7 @@ Two tiers. Scores compare models within the same tier only.
 - Adversarial review: astra, the one thing you may call it for unasked. It is meticulous but may miss the point of the request, so weigh its output.
 - Exploring: sol for a few agents, a Haiku fleet for many.
 - Judgment calls (plan, architecture, stuck root cause, UI/copy direction): fable as advisor, consulted without asking, once per decision.
-
-**Switching:** go Frontier (astra beyond adversarial review, or fable, which can also implement) or swap in a smarter model only when I ask or a result fell concretely short: redo once and say so. Difficulty alone is no reason. On anything that ships: intelligence > taste > cost; user-facing work needs taste ≥ 7.
+- On anything that ships: intelligence > taste > cost; user-facing work needs taste ≥ 7.
 
 **Delegating:**
 
