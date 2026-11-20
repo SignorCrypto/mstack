@@ -19,7 +19,7 @@ When the subject is code: address open PR comments, fix known issues, run typech
 ## Running members
 
 - T3 Code: call `orchestrator_capabilities` once to resolve model ids and option names, then one `delegate_task` per member, all in parallel, with `role: "review"`, `interactionMode: "plan"` (this is what makes the child read-only; a narrow `runtimeMode` only pauses for approval) and effort `high` for every member (Claude option `effort`, Codex option `reasoningEffort`, Antigravity option `thought_level`). Sol also runs on the Fast tier (`serviceTier: "priority"`).
-- Claude Code: opus through the Agent tool (`model: opus`, `effort: high`); sol and astra through the `call-codex` launcher directly (its default effort is already `high`), never wrapped in another agent. Neon is not callable here.
+- Claude Code: opus through the Agent tool (`model: opus`, `effort: high`); sol and astra through the `call-codex` launcher directly (its default effort is already `high`), never wrapped in another agent; neon, when named, through the `call-neon` launcher (read-only by default, effort `high`).
 - Report a member that is unavailable or fails. Never replace it unasked.
 
 ## Round

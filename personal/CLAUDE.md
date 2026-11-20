@@ -47,7 +47,7 @@ Two tiers. Scores compare models within the same tier only.
 **Delegating:**
 
 - Calling Codex: in Claude Code, through the `call-codex` skill; under T3 Code, through T3's own delegation.
-- Calling Neon: under T3 Code, through T3's delegation with the Antigravity provider (`gemini-4-neon`, effort via `thought_level`), never OpenCode's Vercel gateway (metered). In Claude Code it is not callable: its roles fall back to opus, and say so.
+- Calling Neon: in Claude Code, through the `call-neon` skill; under T3 Code, through T3's delegation with the Antigravity provider (effort via `thought_level`), never OpenCode's Vercel gateway (metered).
 - Before reporting delegated work as done, run the checks once yourself (typecheck, tests, build; the app for visual changes).
 
 ## Tools

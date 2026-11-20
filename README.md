@@ -21,6 +21,7 @@ the skills into both clients and registers the MCP server (Node.js 22+; skip wit
 | Skill | What it does |
 |---|---|
 | `call-codex` | How to call Codex models: commands, review, image generation |
+| `call-neon` | How to call Gemini Neon through the Antigravity CLI, in an OS-enforced sandbox |
 | `council` | Opinions and scores from several models, optional fix loop |
 | `ui-review` | Council review of a running app's UI |
 | `ui-before-after` | Annotated before/after screenshots of a UI change |
@@ -28,7 +29,7 @@ the skills into both clients and registers the MCP server (Node.js 22+; skip wit
 | `decision-model` | When and how to use the decision model for triage |
 | `poteto-guardrails` | Poteto's guidelines for trusting agent-written code |
 
-They are written for the author's setup (Codex CLI, Vercel, model names): read one before relying on it.
+They are written for the author's setup (Codex CLI, Antigravity CLI, Vercel, model names): read one before relying on it.
 
 ### Decision model MCP
 
