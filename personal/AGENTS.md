@@ -8,7 +8,7 @@ I think problem first, then logic: talk to me in those terms.
 - Solving: find the root cause and reason about the logic first (why it happens, what rule would make it impossible). Propose the solution as that logic, not as a stack of patches.
 - Reusing: before adding anything that does a job (component, helper, endpoint, script, dependency, …), find what already does it and extend it. If it almost fits, evolve it for every caller instead of forking a variant: two implementations of one job diverge, and then one is wrong.
 - Explaining: for outputs, findings and proposals, lead with the reasoning and the why, then the details.
-- Visual: when a change alters the logic, show it before → after as a small diagram or block flow.
+- Visual: when a change alters the logic, show it before → after. Where the host renders HTML inline (T3 Code), use an HTML diagram; in files people keep (docs, PRs, READMEs), Mermaid; in a plain terminal, a before/after table. Never wide ASCII art: it wraps and breaks.
 - Optimizing (speed, cost, size, tokens, …): measure the same metrics before and after, the same way, and report both. When committing, put the numbers in the commit message.
 
 ## Decision model
