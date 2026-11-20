@@ -28,6 +28,7 @@ Two tiers. Scores compare models within the same tier only.
 | model  | family | cost | intelligence | taste |
 |--------|--------|------|--------------|-------|
 | opus   | Claude | 7    | 9            | 9     |
+| neon   | Gemini | 7    | 9            | 8     |
 | sol    | Codex  | 9    | 8            | 6     |
 | sonnet | Claude | 8    | 7            | 7     |
 | haiku  | Claude | 10   | 6            | 6     |
@@ -35,6 +36,8 @@ Two tiers. Scores compare models within the same tier only.
 **Default roles:**
 
 - Implementing: opus.
+- Optimizing (speed, cost, size, tokens): neon implements and measures; rerun the same measurement yourself before reporting.
+- Copy and written explanations (UI copy, docs, README, reports, write-ups): neon. Chat replies stay with you.
 - Reviewing: sol (a different family).
 - Adversarial review: astra, the one thing you may call it for unasked. It is meticulous but may miss the point of the request, so weigh its output.
 - Exploring: sol for a few agents, a Haiku fleet for many.
@@ -44,6 +47,7 @@ Two tiers. Scores compare models within the same tier only.
 **Delegating:**
 
 - Calling Codex: in Claude Code, through the `call-codex` skill; under T3 Code, through T3's own delegation.
+- Calling Neon: under T3 Code, through T3's delegation with the Antigravity provider (`gemini-4-neon`, effort via `thought_level`), never OpenCode's Vercel gateway (metered). In Claude Code it is not callable: its roles fall back to opus, and say so.
 - Before reporting delegated work as done, run the checks once yourself (typecheck, tests, build; the app for visual changes).
 
 ## Tools
