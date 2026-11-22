@@ -5,6 +5,8 @@ Usage:
   models.py            list the selectable models, newest/most prominent first
   models.py <family>   print the current model id for a family (e.g. astra, sol, luna)
   models.py <model-id> print the id back if it exists in the catalog (validation)
+  models.py <family|model-id> --efforts
+                       print the id, a tab, and its reasoning levels space-separated
 
 Exits non-zero with a message on stderr when the catalog cannot be read or
 the family / id is not found.
@@ -39,21 +41,19 @@ def efforts(m):
 
 def main():
     models = catalog()
+    with_efforts = "--efforts" in sys.argv[2:]
     if len(sys.argv) < 2:
         for m in models:
             print("%-14s ctx=%-8s effort=%-32s %s" % (
                 m["slug"], m.get("context_window"), efforts(m), m.get("description", "")))
         return
     want = sys.argv[1].strip().lower()
-    for m in models:
-        if m["slug"] == want:
-            print(m["slug"])
-            return
+    found = next((m for m in models if m["slug"] == want), None)
     # Family alias: the first (highest-priority, i.e. newest) listed model of that family.
-    for m in models:
-        if m["slug"].endswith("-" + want):
-            print(m["slug"])
-            return
+    found = found or next((m for m in models if m["slug"].endswith("-" + want)), None)
+    if found:
+        print(found["slug"] + ("\t" + efforts(found).replace(",", " ") if with_efforts else ""))
+        return
     sys.exit(f"no listed Codex model matches '{want}'; run models.py with no argument to see the catalog")
 
 

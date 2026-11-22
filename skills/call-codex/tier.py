@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Print the service tier a Codex run used, e.g. `priority` (Fast) or `default`.
 
-Usage: tier.py <thread-id>   (the id from the launcher's "Thread ready (...)" line)
+Usage: tier.py <thread-id>   (the thread_id in the launcher's JSON summary line)
 
 Reads the session files (~/.codex/sessions), falling back to ~/.codex/logs_2.sqlite.
 Child threads (a review's reviewer) are found through the session files, whose

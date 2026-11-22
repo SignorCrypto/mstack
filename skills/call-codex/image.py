@@ -4,8 +4,8 @@
 The image model is picked by OpenAI server-side (the latest rolled out to Codex,
 ChatGPT Images 2.5 since 2026-09-08); the tool takes no model argument.
 
-Runs through the persistent-session launcher with the current `sol` model and a
-read-only sandbox, on the ChatGPT subscription.
+Runs through the call-codex launcher (codex.sh, `codex exec`) with the current `sol`
+model and a read-only sandbox, on the ChatGPT subscription.
 The image file is located on disk under $CODEX_HOME/generated_images/<thread-id>/,
 not taken from Codex's self-report, then copied to --out.
 
@@ -22,7 +22,6 @@ existing file unless --overwrite is given.
 import argparse
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -114,21 +113,25 @@ def main():
     try:
         # Images skip the launcher's Fast tier and effort defaults: config.toml's effort applies.
         r = subprocess.run(
-            ["node", str(SKILL / "codex-companion.mjs"), "task", "--fresh", "--model", model,
-             "--no-fast", "--effort", "config", "--prompt-file", prompt_path],
+            [str(SKILL / "codex.sh"), "--model", model, "--no-fast", "--effort", "config",
+             "--prompt-file", prompt_path],
             stdin=subprocess.DEVNULL, capture_output=True, text=True,
         )
     finally:
         os.unlink(prompt_path)
-    log = r.stdout + "\n" + r.stderr
-    m = re.search(r"Thread ready \(([0-9a-f-]+)\)", log)
-    if r.returncode != 0 or not m:
-        fail(f"codex task failed (exit {r.returncode}): {log.strip()[-1500:]}")
-    thread = m.group(1)
+    # The launcher prints the final message, then one JSON summary line.
+    lines = r.stdout.strip().splitlines()
+    try:
+        summary = json.loads(lines[-1]) if lines else {}
+    except json.JSONDecodeError:
+        summary = {}
+    thread = summary.get("thread_id")
+    if r.returncode != 0 or not thread:
+        fail(f"codex task failed (exit {r.returncode}): {summary.get('error') or (r.stdout + r.stderr).strip()[-1500:]}")
 
     generated = sorted((IMAGES / thread).glob("*.png"), key=lambda p: p.stat().st_mtime) \
         if (IMAGES / thread).is_dir() else []
-    message = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ""
+    message = lines[-2] if len(lines) > 1 else ""
     if len(generated) < a.n:
         fail(f"expected {a.n} image(s) in {IMAGES / thread}, found {len(generated)}; codex said: {message}")
 
