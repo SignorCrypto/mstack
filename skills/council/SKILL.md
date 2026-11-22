@@ -19,7 +19,7 @@ When the subject is code: address open PR comments, fix known issues, run typech
 ## Running members
 
 - T3 Code: call `orchestrator_capabilities` once to resolve model ids and option names, then one `delegate_task` per member, all in parallel, with `role: "review"`, `interactionMode: "plan"` (this is what makes the child read-only; a narrow `runtimeMode` only pauses for approval) and effort `high` for every member (Claude option `effort`, Codex option `reasoningEffort`, Antigravity option `thought_level`). Sol also runs on the Fast tier (`serviceTier: "priority"`).
-- Claude Code: opus through the Agent tool (`model: opus`, `effort: high`); sol and astra through the `call-codex` launcher directly (its default effort is already `high`), never wrapped in another agent; neon, when named, through the `call-neon` launcher (read-only by default, effort `high`).
+- Standalone CLI (outside T3 Code): each member runs through its family's launcher directly, never wrapped in another agent, read-only, effort `high` (every launcher's default): opus through `call-claude` (in Claude Code itself, the Agent tool with `model: opus`, `effort: high`), sol and astra through `call-codex`, neon, when named, through `call-antigravity`.
 - Report a member that is unavailable or fails. Never replace it unasked.
 
 ## Round
@@ -61,7 +61,7 @@ In the user's language:
 2. Each new round uses new delegates, never a follow-up message to the old ones: same brief on the updated material, plus the "Already decided" line. No earlier scores, no list of what you fixed, no opinion of yours.
 3. Keep the scope. Fixes stay inside the subject as given; a point that asks for a new feature or a redesign is recorded and put to the user, not implemented.
 4. After every round, update the report (see Report) and, if a PR is open, the score table in its description (edit it, do not post a comment).
-5. Stop when every member scores at least N; `no score` counts as below N. Also stop and ask the user when two rounds in a row raise no member's score, or when the same-spot rule in CLAUDE.md fires. This stop rule replaces the CLAUDE.md review budget.
+5. Stop when every member scores at least N; `no score` counts as below N. Also stop and ask the user when two rounds in a row raise no member's score, or when the same-spot rule in the global rules fires. This stop rule replaces the global review budget.
 6. Final reply: the score table, fixed versus recorded, rounds and agents used, files touched, and the report path.
 
 ## Report (`council N` only)

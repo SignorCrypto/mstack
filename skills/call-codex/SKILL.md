@@ -1,24 +1,24 @@
 ---
 name: call-codex
-description: How to call Codex from Claude Code (model ids resolved live from the Codex catalog; which model to use is CLAUDE.md's call) - the exact commands for investigation, implementation, review, and image generation (latest ChatGPT Images model via subscription), background runs, sandbox limits, and what never to use. Single source of truth for Codex calls. Load it before ANY Codex call, from any skill, agent, or workflow.
+description: How to call Codex from another CLI such as Claude Code or Antigravity (model ids resolved live from the Codex catalog; which model to use is set by the global rules) - the exact commands for investigation, implementation, review, and image generation (latest ChatGPT Images model via subscription), background runs, sandbox limits, and what never to use. Single source of truth for Codex calls. Load it before ANY Codex call, from any skill, agent, or workflow.
 argument-hint: "[sol|astra] <task, or 'review' / 'adversarial-review' / 'image'>"
 ---
 
 # Call Codex
 
-Every rule for calling Codex lives here. Other skills and CLAUDE.md point to this file and do not repeat it.
+Every rule for calling Codex lives here. Other skills and the global rules point to this file and do not repeat it.
 
 All calls go through the local launcher, which applies the defaults and refuses what is forbidden, so this file only says when and what to call:
 
 ```bash
-C="$HOME/.claude/skills/call-codex/codex-companion.mjs"
+C="$HOME/.agents/skills/call-codex/codex-companion.mjs"
 ```
 
 ## Models
 
-Which model to call, and for what, is set by CLAUDE.md; this file only says how. With no `--model`, the launcher uses `sol`.
+Which model to call, and for what, is set by the global rules; this file only says how. With no `--model`, the launcher uses `sol`.
 
-To see the live catalog (ids, context, reasoning levels): `python3 ~/.claude/skills/call-codex/models.py`. If the catalog shows a family's role no longer fits (e.g. descriptions change), tell the user.
+To see the live catalog (ids, context, reasoning levels): `python3 ~/.agents/skills/call-codex/models.py`. If the catalog shows a family's role no longer fits (e.g. descriptions change), tell the user.
 
 ## What the launcher does
 
@@ -59,16 +59,16 @@ node "$C" adversarial-review "<focus: e.g. auth checks and data loss paths>"
 
 Scope defaults to `auto` (working tree if dirty, else branch vs base; untracked files included). Pass `--base <ref>` to review a branch, or `--scope working-tree|branch` to force one. `review` accepts no focus text: use `adversarial-review` when you need to steer it. Verify every finding against the code before applying it.
 
-To confirm a run used the Fast tier: `python3 ~/.claude/skills/call-codex/tier.py <thread-id>` (the id from "Thread ready (...)") prints the tier per thread, `priority` = Fast. A review's parent thread shows `[]`: the reviewer runs in a child thread, listed with its own tier.
+To confirm a run used the Fast tier: `python3 ~/.agents/skills/call-codex/tier.py <thread-id>` (the id from "Thread ready (...)") prints the tier per thread, `priority` = Fast. A review's parent thread shows `[]`: the reviewer runs in a child thread, listed with its own tier.
 
 ## Image generation
 
-Codex's built-in `image_gen` tool generates and edits images on the ChatGPT subscription. The image model is chosen by OpenAI server-side: the tool has no model argument, so it always gets the latest model OpenAI rolls out to Codex (ChatGPT Images 2.5 since 2026-09-08; the CLI binary still carries a `gpt-image-2` label, and C2PA metadata only says `gpt-image`). It works in the read-only sandbox. Use it for raster images (photo, illustration, texture, sprite, product shot), standalone or as a piece of a larger composition. Compositions, layouts, SVG, icons, and diagrams are Claude's own work, not Codex's.
+Codex's built-in `image_gen` tool generates and edits images on the ChatGPT subscription. The image model is chosen by OpenAI server-side: the tool has no model argument, so it always gets the latest model OpenAI rolls out to Codex (ChatGPT Images 2.5 since 2026-09-08; the CLI binary still carries a `gpt-image-2` label, and C2PA metadata only says `gpt-image`). It works in the read-only sandbox. Use it for raster images (photo, illustration, texture, sprite, product shot), standalone or as a piece of a larger composition. Compositions, layouts, SVG, icons, and diagrams stay with the orchestrator, not Codex's image tool.
 
 Always go through the bundled wrapper: it resolves the `sol` id, runs the launcher without the Fast tier and with `config.toml`'s effort (reasoning barely matters here), finds the file on disk under `~/.codex/generated_images/<thread-id>/` (never trust Codex's reported path), and copies it to `--out`. Same rules as any Codex call: Bash `run_in_background: true`, prompt in a scratchpad file.
 
 ```bash
-I=~/.claude/skills/call-codex/image.py
+I=~/.agents/skills/call-codex/image.py
 python3 $I --prompt-file <scratchpad>/img.md --out <project>/assets/hero.png
 python3 $I --prompt-file <scratchpad>/img.md --out icon.png --transparent           # transparent background
 python3 $I --prompt-file <scratchpad>/img.md --out hero-v2.png --ref /abs/hero.png  # edit / reference (repeatable)

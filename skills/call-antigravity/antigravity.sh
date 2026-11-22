@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Neon launcher: runs one headless Antigravity CLI (agy) turn with mstack's defaults.
+# Antigravity launcher: runs one headless Antigravity CLI (agy) turn with mstack's defaults.
 #
-#   neon.sh --prompt-file <file> [--write] [--effort <level>] [--model <neon|id>]
+#   antigravity.sh --prompt-file <file> [--write] [--effort <level>] [--model <family|id>]
 #           [--cwd <dir>] [--add-dir <dir>]... [--resume <conversation-id>] [--dry-run]
 #
-# - Model: the latest gemini-*-neon in `agy models` (resolved live; unknown names are an error).
-# - Effort: high unless --effort says otherwise.
+# - Model: any model in `agy models` (Gemini, Claude, ...). A family name (neon, argon, flash,
+#   opus, sonnet) resolves live to its newest version; default neon. Unknown names are an error.
+# - Effort: high unless --effort says otherwise; it must exist for that model in the catalog.
 # - Sandbox (macOS sandbox-exec, enforced by the OS, not by the agent):
 #     read-only (default)  no file writes except agy's own state and the user temp/cache dirs;
 #     --write              also the working dir, its git common dir and every --add-dir.
@@ -14,7 +15,9 @@
 # - Never reads stdin. Prints the response, then one JSON summary line; exits 1 on failure.
 set -euo pipefail
 
-die() { echo "neon launcher: $*" >&2; exit 2; }
+die() { echo "antigravity launcher: $*" >&2; exit 2; }
+# The skill dir is linked from the repo; the shared sandbox lives at the repo root.
+. "$(cd "$(dirname "$0")" && pwd -P)/../../lib/sandbox.sh" || die "lib/sandbox.sh not found (run install.sh)"
 
 PROMPT_FILE="" WRITE=0 EFFORT="high" MODEL="neon" CWD="$PWD" RESUME="" DRY=0
 ADD_DIRS=()
@@ -41,55 +44,50 @@ command -v agy >/dev/null || die "agy not found: curl -fsSL https://antigravity.
 CWD="$(cd "$CWD" && pwd -P)" || die "--cwd $CWD does not exist"
 
 # Model: a family name resolves to its newest version; an exact id must exist.
+# Family ids look like <vendor>-<version>-<family> (gemini-4-neon) or <vendor>-<family>-<version>
+# (claude-opus-5-5); routers such as gemini-pro-orchestrator-neon never match a family.
 CATALOG="$(agy models 2>/dev/null | awk -F'\t' 'NF>1{print $1}')" || true
 [[ -n "$CATALOG" ]] || die "could not read the model catalog (agy models): signed in?"
 BASES="$(sed -E 's/-(low|medium|high|xhigh|max)$//' <<<"$CATALOG" | sort -u)"
 if [[ "$MODEL" =~ ^[a-z]+$ ]]; then
-  ID="$(grep -E "^gemini-[0-9.]+-${MODEL}$" <<<"$BASES" | sort -V | tail -1 || true)"
-  [[ -n "$ID" ]] || die "no gemini-*-$MODEL model in the catalog"
+  ID="$(grep -E "^[a-z]+-([0-9][0-9.]*-)?${MODEL}(-[0-9][0-9.]*)*$" <<<"$BASES" | sort -V | tail -1 || true)"
+  [[ -n "$ID" ]] || die "no $MODEL model in the catalog (agy models)"
 else
   grep -qxF "$MODEL" <<<"$BASES" || die "model $MODEL is not in the catalog"
   ID="$MODEL"
 fi
+# Effort: the catalog lists one id per supported level; a model without levels takes none.
+LEVELS="$(grep -E "^${ID}-(low|medium|high|xhigh|max)$" <<<"$CATALOG" | sed "s/^${ID}-//" | tr '\n' ' ' || true)"
+if [[ -n "$LEVELS" && " $LEVELS" != *" $EFFORT "* ]]; then
+  die "$ID supports effort: ${LEVELS% }"
+fi
 
-# Sandbox profile: deny every write, then allow agy's state, the temp/cache dirs and the TTY.
-real() { (cd "$1" 2>/dev/null && pwd -P) || die "directory $1 does not exist"; }
-TMP_DIR="$(getconf DARWIN_USER_TEMP_DIR)"; TMP_DIR="${TMP_DIR%/}"
-CACHE_DIR="$(getconf DARWIN_USER_CACHE_DIR)"; CACHE_DIR="${CACHE_DIR%/}"
-WRITABLE=("$HOME/.gemini" "$HOME/.cache/antigravity" "$TMP_DIR" "$CACHE_DIR")
+# Sandbox: every write denied except agy's own state (plus temp/cache, added by the lib).
+real() { sandbox_real_dir "$1" || die "directory $1 does not exist"; }
+WRITABLE=("$HOME/.gemini" "$HOME/.cache/antigravity")
 ADD_ARGS=()
 for d in "${ADD_DIRS[@]+"${ADD_DIRS[@]}"}"; do
   d="$(real "$d")"; ADD_ARGS+=(--add-dir "$d")
   ((WRITE)) && WRITABLE+=("$d")
 done
 if ((WRITE)); then
-  WRITABLE+=("$CWD")
-  # A worktree's commits land in the main repo's .git; let git write there too.
-  if GIT_COMMON="$(git -C "$CWD" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; then
-    WRITABLE+=("$(real "$GIT_COMMON")")
-  fi
+  while IFS= read -r d; do WRITABLE+=("$d"); done < <(sandbox_writable_workspace "$CWD")
   SANDBOX="workspace-write"
 else
   SANDBOX="read-only"
 fi
-PROFILE="$(mktemp "$TMP_DIR/neon-sandbox.XXXXXX")"
+PROFILE="$(mktemp "$(sandbox_tmp_dir)/agy-sandbox.XXXXXX")"
 trap 'rm -f "$PROFILE"' EXIT
-{
-  echo '(version 1)'
-  echo '(allow default)'
-  echo '(deny file-write*)'
-  echo '(allow file-write*'
-  for p in "${WRITABLE[@]}"; do printf '  (subpath "%s")\n' "${p//\"/\\\"}"; done
-  echo '  (literal "/dev/null") (literal "/dev/tty") (literal "/dev/ptmx")'
-  echo '  (regex #"^/dev/ttys[0-9]+$") (regex #"^/dev/fd/"))'
-} >"$PROFILE"
+sandbox_profile "$PROFILE" "${WRITABLE[@]}"
 
-CMD=(agy -p "$(cat "$PROMPT_FILE")" --model "$ID" --effort "$EFFORT"
+CMD=(agy -p "$(cat "$PROMPT_FILE")" --model "$ID"
      --dangerously-skip-permissions --output-format json
      ${ADD_ARGS[@]+"${ADD_ARGS[@]}"})
+[[ -n "$LEVELS" ]] && CMD+=(--effort "$EFFORT")
 [[ -n "$RESUME" ]] && CMD+=(--conversation "$RESUME")
+[[ -n "$LEVELS" ]] || EFFORT="none"
 
-echo "neon launcher: $ID effort=$EFFORT sandbox=$SANDBOX cwd=$CWD" >&2
+echo "antigravity launcher: $ID effort=$EFFORT sandbox=$SANDBOX cwd=$CWD" >&2
 if ((DRY)); then
   printf '%s\n' "${WRITABLE[@]}" | python3 -c 'import json,sys
 print(json.dumps({"model": sys.argv[1], "effort": sys.argv[2], "sandbox": sys.argv[3], "cwd": sys.argv[4],

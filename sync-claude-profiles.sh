@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
-# Sync configuration across multiple Claude Code profiles (CLAUDE_CONFIG_DIR).
+# Sync configuration across multiple Claude Code profiles (CLAUDE_CONFIG_DIR), and the skills and
+# global instructions of a Claude profile into the other agent hosts (Codex, Antigravity).
 #
 #   ./sync-claude-profiles.sh                              (interactive wizard)
 #   ./sync-claude-profiles.sh --skills --dry-run           (preview skill sync)
 #   ./sync-claude-profiles.sh --from ~/.claude --to ~/.claude-work --skills --mcp
 #   ./sync-claude-profiles.sh --all                        (sync all categories)
+#   ./sync-claude-profiles.sh --skills --hosts             (skills also into Codex and Antigravity)
 #
 # By default, nothing is modified silently:
 #   - Skills are synced per entry (excluding Claude's own `synced/` dir, which is org-scoped).
 #   - CLAUDE.md, settings*.json, MCP servers, and user plugins are opt-in.
+#   - With --hosts, skills meet in the hub ~/.agents/skills (read by Codex; Antigravity's skills dir
+#     becomes a link to it): the source profile's skills go in, skills installed only there come
+#     back to the profiles, same-named different skills are reported, never replaced. CLAUDE.md
+#     goes to ~/.codex/AGENTS.md and ~/.gemini/AGENTS.md. Settings, MCP servers, plugins stay Claude-only.
 #   - MCP servers are registered via `claude mcp add-json` (stdin), never by raw-editing .claude.json;
 #     servers containing `env` or `headers` are flagged and skipped in non-interactive mode unless
 #     --include-secrets is passed.
@@ -20,7 +26,7 @@ BACKUP="$HOME/.mstack-backup/$(date +%Y%m%d-%H%M%S)"
 DRY=0
 FROM_ARG=""
 TO_ARGS=()
-DO_SKILLS=0 DO_CLAUDE_MD=0 DO_SETTINGS=0 DO_MCP=0 DO_PLUGINS=0
+DO_SKILLS=0 DO_CLAUDE_MD=0 DO_SETTINGS=0 DO_MCP=0 DO_PLUGINS=0 DO_HOSTS=0
 HAS_CATEGORY_FLAG=0
 INCLUDE_SECRETS=0
 
@@ -31,6 +37,7 @@ Usage: sync-claude-profiles.sh [options]
 Profile selection:
   --from <dir>         Source Claude Code profile (default: prompt or ~/.claude)
   --to <dir>           Target Claude Code profile (repeatable; default: prompt or all other detected)
+  --hosts              Also sync skills and CLAUDE.md into Codex and Antigravity (those installed)
 
 Categories (omit all for interactive selection):
   --skills             Sync skills (symlinks, excluding Claude's org-scoped synced/ dir)
@@ -38,7 +45,7 @@ Categories (omit all for interactive selection):
   --settings           Sync settings.json and settings.local.json symlinks
   --mcp                Sync user-scope MCP servers via `claude mcp add-json`
   --plugins            Sync user-scope plugins via `claude plugin install`
-  --all                Enable all categories above (MCP servers with env/headers skipped unless --include-secrets)
+  --all                Enable all categories above and --hosts (MCP servers with env/headers skipped unless --include-secrets)
   --include-secrets    Allow non-interactive sync of MCP servers that define env/headers
 
 Other:
@@ -63,7 +70,8 @@ while (($#)); do
     --settings) DO_SETTINGS=1; HAS_CATEGORY_FLAG=1 ;;
     --mcp) DO_MCP=1; HAS_CATEGORY_FLAG=1 ;;
     --plugins) DO_PLUGINS=1; HAS_CATEGORY_FLAG=1 ;;
-    --all) DO_SKILLS=1; DO_CLAUDE_MD=1; DO_SETTINGS=1; DO_MCP=1; DO_PLUGINS=1; HAS_CATEGORY_FLAG=1 ;;
+    --hosts) DO_HOSTS=1 ;;
+    --all) DO_SKILLS=1; DO_CLAUDE_MD=1; DO_SETTINGS=1; DO_MCP=1; DO_PLUGINS=1; DO_HOSTS=1; HAS_CATEGORY_FLAG=1 ;;
     --include-secrets) INCLUDE_SECRETS=1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "sync-claude-profiles: unknown option $1 (run with --help)" >&2; exit 2 ;;
@@ -73,6 +81,7 @@ done
 
 run() { if ((DRY)); then echo "  would: $*"; else "$@"; fi; }
 warn() { echo "sync-claude-profiles: $*" >&2; }
+. "$(cd "$(dirname "$0")" && pwd -P)/lib/links.sh" || { echo "sync-claude-profiles: lib/links.sh not found" >&2; exit 1; }
 
 norm_dir() {
   local d="$1"
@@ -97,6 +106,24 @@ pretty_list() {
   done
   printf '%s' "$out"
 }
+
+real_path() {
+  if [[ -d "$1" ]]; then (cd "$1" && pwd -P); return; fi
+  python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$1" 2>/dev/null \
+    || node -e 'console.log(require("fs").realpathSync(process.argv[1]))' "$1" 2>/dev/null \
+    || printf '%s\n' "$1"
+}
+
+# Agent hosts other than Claude Code: name and global instructions file. Their skills come from
+# the hub (~/.agents/skills): Codex reads it, Antigravity's skills dir links to it.
+HUB="$HOME/.agents/skills"
+HOST_NAMES=() HOST_MDS=() AGY=0
+if [[ -d "$HOME/.codex" ]] || command -v codex >/dev/null; then
+  HOST_NAMES+=("Codex"); HOST_MDS+=("$HOME/.codex/AGENTS.md")
+fi
+if [[ -d "$HOME/.gemini/config" ]] || command -v agy >/dev/null; then
+  HOST_NAMES+=("Antigravity"); HOST_MDS+=("$HOME/.gemini/AGENTS.md"); AGY=1
+fi
 
 cfg_file_for() {
   if [[ "$1" == "$HOME/.claude" ]]; then printf '%s\n' "$HOME/.claude.json"
@@ -252,8 +279,10 @@ select_profiles() {
       done
     fi
     if ((${#others[@]} == 0)); then
-      warn "no other Claude Code profiles found to sync into (pass --to <dir>)"
-      exit 1
+      if ((${#HOST_NAMES[@]} == 0)); then
+        warn "no other Claude Code profiles found to sync into (pass --to <dir>)"
+        exit 1
+      fi
     elif ((${#others[@]} == 1)) || ! is_interactive; then
       for d in "${others[@]}"; do add_target "$d"; done
     else
@@ -294,43 +323,21 @@ select_profiles() {
     fi
   fi
 
-  if ((${#TARGET_DIRS[@]} == 0)); then
+  if ((${#TARGET_DIRS[@]} == 0 && ${#HOST_NAMES[@]} == 0)); then
     warn "no target profiles selected (source and target cannot be the same)"
     exit 1
   fi
 }
 
-link() {
-  local target="$1" path="$2"
-  if [[ -L "$path" ]]; then
-    if [[ "$(readlink "$path")" == "$target" ]]; then return 0; fi
-    if [[ -d "$path" && -d "$target" ]] && [[ "$(cd "$path" && pwd -P)" == "$(cd "$target" && pwd -P)" ]]; then return 0; fi
-  fi
-  if [[ -e "$path" || -L "$path" ]]; then
-    local rel="${path#"$HOME"/}"
-    local dest="$BACKUP/${rel#/}"
-    run mkdir -p "$(dirname "$dest")"
-    run mv "$path" "$dest"
-    echo "backed up $path -> $dest"
-  fi
-  run mkdir -p "$(dirname "$path")"
-  run ln -s "$target" "$path"
-  echo "linked $path -> $target"
-}
-
+# sync_skills SKILLS_DIR: link every source skill into SKILLS_DIR (a profile's or a host's).
 sync_skills() {
-  local dst="$1" item name resolved l
+  local sdir="$1" item l
   [[ -d "$SRC_DIR/skills" ]] || return 0
-  run mkdir -p "$dst/skills"
-  for item in "$SRC_DIR"/skills/*; do
-    [[ -e "$item" ]] || continue
-    name="$(basename "$item")"
-    case "$name" in .*|synced) continue ;; esac
-    [[ -d "$item" ]] || continue
-    resolved="$(cd "$item" && pwd -P)"
-    link "$resolved" "$dst/skills/$name"
-  done
-  for l in "$dst"/skills/*; do
+  run mkdir -p "$sdir"
+  while IFS= read -r item; do
+    link "$(cd "$item" && pwd -P)" "$sdir/$(basename "$item")"
+  done < <(skill_entries "$SRC_DIR/skills")
+  for l in "$sdir"/*; do
     if [[ -L "$l" && ! -e "$l" ]]; then
       run rm "$l"
       echo "removed broken skill link $l"
@@ -338,11 +345,11 @@ sync_skills() {
   done
 }
 
+# sync_claude_md PATH: link PATH (a profile's CLAUDE.md or a host's AGENTS.md) to the source's real file.
 sync_claude_md() {
-  local dst="$1" src_md="$SRC_DIR/CLAUDE.md" resolved
+  local src_md="$SRC_DIR/CLAUDE.md"
   [[ -e "$src_md" ]] || return 0
-  resolved="$(cd "$(dirname "$src_md")" && python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$src_md" 2>/dev/null || node -e 'console.log(require("fs").realpathSync(process.argv[1]))' "$src_md" 2>/dev/null || printf '%s' "$src_md")"
-  link "$resolved" "$dst/CLAUDE.md"
+  link "$(real_path "$src_md")" "$1"
 }
 
 sync_settings() {
@@ -537,7 +544,7 @@ if ((HAS_CATEGORY_FLAG == 0)); then
   if is_interactive; then
     {
       echo ""
-      echo "Syncing from $(pretty_dir "$SRC_DIR") -> $(pretty_list "${TARGET_DIRS[@]}")"
+      echo "Syncing from $(pretty_dir "$SRC_DIR") -> $(pretty_list ${TARGET_DIRS[@]+"${TARGET_DIRS[@]}"})"
     } >/dev/tty
     ask_yn "Sync skills (excluding org-scoped synced/)?" "y" && DO_SKILLS=1 || true
     ask_yn "Sync CLAUDE.md symlink?" "n" && DO_CLAUDE_MD=1 || true
@@ -549,15 +556,38 @@ if ((HAS_CATEGORY_FLAG == 0)); then
     ask_yn "Sync user-scope plugins?" "n" && DO_PLUGINS=1 || true
   else
     DO_SKILLS=1
+    DO_HOSTS=1
   fi
 fi
+if ((HAS_CATEGORY_FLAG == 0 && DO_HOSTS == 0 && ${#HOST_NAMES[@]})) && is_interactive; then
+  ask_yn "Also sync skills and CLAUDE.md into $(IFS=/; echo "${HOST_NAMES[*]}") (as their skills and AGENTS.md)?" "y" && DO_HOSTS=1 || true
+fi
+((DO_HOSTS)) || HOST_NAMES=()
+if ((${#TARGET_DIRS[@]} == 0 && ${#HOST_NAMES[@]} == 0)); then
+  warn "nothing to sync into"
+  exit 1
+fi
 
-for dst in "${TARGET_DIRS[@]}"; do
-  ((DO_SKILLS)) && sync_skills "$dst"
-  ((DO_CLAUDE_MD)) && sync_claude_md "$dst"
-  ((DO_SETTINGS)) && sync_settings "$dst"
-done
-((DO_MCP)) && sync_mcp "$INTERACTIVE_MCP"
-((DO_PLUGINS)) && sync_plugins
-
-echo "Sync complete ($(pretty_dir "$SRC_DIR") -> $(pretty_list "${TARGET_DIRS[@]}"))"
+# Hosts first, so the profiles below also receive the skills that were only in the hub.
+if ((${#HOST_NAMES[@]})); then
+  if ((DO_SKILLS)); then
+    link_missing "$SRC_DIR/skills" "$HUB"   # the source profile's skills reach Codex/Antigravity
+    link_missing "$HUB" "$SRC_DIR/skills" quiet  # skills installed only in the hub reach Claude
+    if ((AGY)); then link_skills_dir "$HOME/.gemini/config/skills" "$HUB"; fi
+  fi
+  for ((i = 0; i < ${#HOST_NAMES[@]}; i++)); do
+    ((DO_CLAUDE_MD)) && sync_claude_md "${HOST_MDS[$i]}"
+  done
+fi
+if ((${#TARGET_DIRS[@]})); then
+  for dst in "${TARGET_DIRS[@]}"; do
+    ((DO_SKILLS)) && sync_skills "$dst/skills"
+    ((DO_CLAUDE_MD)) && sync_claude_md "$dst/CLAUDE.md"
+    ((DO_SETTINGS)) && sync_settings "$dst"
+  done
+  ((DO_MCP)) && sync_mcp "$INTERACTIVE_MCP"
+  ((DO_PLUGINS)) && sync_plugins
+fi
+DESTS=(${TARGET_DIRS[@]+"${TARGET_DIRS[@]}"})
+if ((${#HOST_NAMES[@]})); then DESTS+=("${HOST_NAMES[@]}"); fi
+echo "Sync complete ($(pretty_dir "$SRC_DIR") -> $(pretty_list "${DESTS[@]}"))"

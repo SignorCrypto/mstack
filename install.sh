@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mstack installer for Claude Code and Codex.
+# mstack installer for Claude Code, Codex and Antigravity.
 #
 #   curl -fsSL https://raw.githubusercontent.com/SignorCrypto/mstack/main/install.sh | bash
 #   curl -fsSL .../install.sh | bash -s -- --dry-run      (pass flags after `-s --`; still clones/pulls)
@@ -9,13 +9,15 @@
 # and reruns itself from there. From a checkout it installs from wherever the checkout is.
 #
 # What it does, idempotently (rerun it to update):
-#   1. links each skills/<name> into the chosen Claude Code profile(s) (auto-detected if multiple
-#      exist, or set via CLAUDE_CONFIG_DIR / --claude-dir) and ~/.agents/skills (Codex), and
-#      removes links to skills deleted from the repo;
+#   1. links each skills/<name> into ~/.agents/skills (the skills hub, read by Codex) and the chosen
+#      Claude Code profile(s) (auto-detected if multiple exist, or set via CLAUDE_CONFIG_DIR /
+#      --claude-dir); when Antigravity is installed, links its whole ~/.gemini/config/skills to the
+#      hub; removes links to skills deleted from the repo;
 #   2. installs the decision-model MCP server (needs Node.js 22+) and registers it with the
-#      `claude` (per selected profile) and `codex` CLIs that are present, unless --no-mcp;
-#   3. only with --personal: links personal/CLAUDE.md (per selected profile) and personal/AGENTS.md
-#      as the global instructions. Without the flag your own CLAUDE.md and ~/.codex/AGENTS.md are untouched.
+#      `claude` (per selected profile), `codex` and `agy` CLIs that are present, unless --no-mcp;
+#   3. only with --personal: links personal/AGENTS.md, the one global instructions file, as each
+#      selected profile's CLAUDE.md, ~/.codex/AGENTS.md and (with Antigravity) ~/.gemini/AGENTS.md.
+#      Without the flag your own instruction files are untouched.
 # Anything it replaces that is not already the right symlink is moved to ~/.mstack-backup/<timestamp>/.
 set -euo pipefail
 
@@ -191,40 +193,27 @@ select_claude_dirs() {
   done
 }
 
-# link TARGET PATH: make PATH a symlink to TARGET, backing up whatever was there.
-link() {
-  local target="$1" path="$2"
-  if [[ -L "$path" && "$(readlink "$path")" == "$target" ]]; then return 0; fi
-  if [[ -e "$path" || -L "$path" ]]; then
-    local rel="${path#"$HOME"/}"
-    local dest="$BACKUP/${rel#/}"
-    run mkdir -p "$(dirname "$dest")"
-    run mv "$path" "$dest"
-    echo "backed up $path -> $dest"
-  fi
-  run mkdir -p "$(dirname "$path")"
-  run ln -s "$target" "$path"
-  echo "linked $path -> $target"
-}
+. "$REPO/lib/links.sh"
 
 select_claude_dirs
 
+# Every host sees the same skills. The repo's skills are linked into the hub (~/.agents/skills,
+# read by Codex) and into each Claude profile; Antigravity's whole skills dir links to the hub,
+# so it also sees everything else installed there. Antigravity only when it is installed.
+HUB="$HOME/.agents/skills"
+SKILL_DIRS=("$HUB")
+for cdir in "${CLAUDE_DIRS[@]}"; do SKILL_DIRS+=("$cdir/skills"); done
+AGY=0
+if command -v agy >/dev/null || [[ -d "$HOME/.gemini/config" ]]; then AGY=1; fi
+
 # 1. Skills
-for dir in "$REPO"/skills/*/; do
-  name="$(basename "$dir")"
-  link "$REPO/skills/$name" "$HOME/.agents/skills/$name"
-  for cdir in "${CLAUDE_DIRS[@]}"; do
-    link "$REPO/skills/$name" "$cdir/skills/$name"
+if ((AGY)); then link_skills_dir "$HOME/.gemini/config/skills" "$HUB"; fi
+for sdir in "${SKILL_DIRS[@]}"; do
+  for dir in "$REPO"/skills/*/; do
+    name="$(basename "$dir")"
+    link "$REPO/skills/$name" "$sdir/$name"
   done
-done
-for l in "$HOME"/.agents/skills/*; do
-  if [[ -L "$l" && ! -e "$l" && "$(readlink "$l")" == "$REPO/skills/"* ]]; then
-    run rm "$l"
-    echo "removed stale link $l"
-  fi
-done
-for cdir in "${CLAUDE_DIRS[@]}"; do
-  for l in "$cdir"/skills/*; do
+  for l in "$sdir"/*; do
     if [[ -L "$l" && ! -e "$l" && "$(readlink "$l")" == "$REPO/skills/"* ]]; then
       run rm "$l"
       echo "removed stale link $l"
@@ -266,6 +255,14 @@ register_codex() {
   ((DRY)) || echo "registered decision-model MCP with codex"
 }
 
+register_agy() {
+  command -v agy >/dev/null || return 0
+  # `agy mcp add` adds or updates, so a changed node path or checkout just overwrites the entry.
+  if agy mcp list 2>/dev/null | grep -qF "$SERVER"; then return 0; fi
+  runq agy mcp add decision-model -- "$NODE" "$SERVER"
+  ((DRY)) || echo "registered decision-model MCP with agy"
+}
+
 install_mcp() {
   local mcp="$REPO/mcp/decision-model" sum major cdir
   NODE="$(command -v node || true)"
@@ -284,18 +281,20 @@ install_mcp() {
     register_claude "$cdir"
   done
   register_codex
+  register_agy
 
   # The registration pins this node binary: rerun the installer after upgrading or removing it.
   ((DRY)) || "$NODE" "$mcp/src/config.mjs" --summary || true
 }
 ((MCP_ON)) && install_mcp
 
-# 3. Personal global instructions (opt-in)
+# 3. Personal global instructions (opt-in): one file, linked under each host's own name.
 if ((PERSONAL)); then
   for cdir in "${CLAUDE_DIRS[@]}"; do
-    link "$REPO/personal/CLAUDE.md" "$cdir/CLAUDE.md"
+    link "$REPO/personal/AGENTS.md" "$cdir/CLAUDE.md"
   done
   link "$REPO/personal/AGENTS.md" "$HOME/.codex/AGENTS.md"
+  if ((AGY)); then link "$REPO/personal/AGENTS.md" "$HOME/.gemini/AGENTS.md"; fi
 fi
 
 echo "mstack installed from $REPO"

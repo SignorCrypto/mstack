@@ -18,7 +18,7 @@ node src/check-live.mjs                   # one real call (spends credits)
 
 ## Configure
 
-Everything lives in `~/.config/decision-model/config.json`, shared by Claude Code and Codex and read on
+Everything lives in `~/.config/decision-model/config.json`, shared by Claude Code, Codex, and Antigravity and read on
 every call, so changes need no restart. The agent cannot override any of it.
 
 ```sh
@@ -138,7 +138,7 @@ error bodies are never logged.
 
 **By hand:** `npm ci --omit=dev --ignore-scripts`, then
 `claude mcp add --scope user --transport stdio decision-model -- "$(command -v node)" "$PWD/src/server.mjs"`
-(and `codex mcp add decision-model -- …` likewise).
+(and `codex mcp add decision-model -- …` / `agy mcp add decision-model -- …` likewise).
 
 **New provider:** if it speaks System One, add a row to `src/providers.mjs` and to the table above.
 

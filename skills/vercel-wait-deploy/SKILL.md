@@ -9,7 +9,7 @@ argument-hint: "[--project <name>]... [--timeout <time>] [commit]"
 Never wait on a Vercel build with `sleep`, polling loops or repeated `vercel inspect`. Run the launcher once, with Bash `run_in_background: true` (you are notified when it exits) and stdin closed:
 
 ```bash
-~/.claude/skills/vercel-wait-deploy/wait-deploy.sh [commit] </dev/null
+~/.agents/skills/vercel-wait-deploy/wait-deploy.sh [commit] </dev/null
 ```
 
 - Run it from anywhere inside the repo, after the push. `commit` defaults to `HEAD`; it must be the pushed commit.

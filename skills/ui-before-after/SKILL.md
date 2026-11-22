@@ -26,7 +26,7 @@ Same viewport, same agent/record, same tab, same popover open. Only the code may
 Write a JSON spec and run the bundled script (Pillow, macOS fonts):
 
 ```
-python3 -I ~/.claude/skills/ui-before-after/scripts/annotate.py <scratchpad>/recap-spec.json
+python3 -I ~/.agents/skills/ui-before-after/scripts/annotate.py <scratchpad>/recap-spec.json
 ```
 
 The spec format is at the top of `scripts/annotate.py`. Rules for the marks:
