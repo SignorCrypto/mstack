@@ -1,23 +1,38 @@
 #!/usr/bin/env bash
-# mstack installer for Claude Code, Codex and Antigravity.
+# mstack installer for Claude Code, Codex and Antigravity. The one command: rerun it whenever you
+# install a skill, add a profile or pull mstack, and every host is aligned again.
 #
 #   curl -fsSL https://raw.githubusercontent.com/SignorCrypto/mstack/main/install.sh | bash
 #   curl -fsSL .../install.sh | bash -s -- --dry-run      (pass flags after `-s --`; still clones/pulls)
-#   ./install.sh [--dry-run] [--no-mcp] [--personal] [--claude-dir <path>...]
+#   ./install.sh [--dry-run] [--no-mcp] [--personal | --rules <file>]
+#                [--claude-dir <path>]... [--codex-dir <path>]...
+#                [--align-profiles] [--align-mcp [--include-secrets]]
 #
 # Piped from curl, it clones (or updates) the repo into $MSTACK_DIR (default ~/.mstack)
 # and reruns itself from there. From a checkout it installs from wherever the checkout is.
 #
-# What it does, idempotently (rerun it to update):
-#   1. links each skills/<name> into ~/.agents/skills (the skills hub, read by Codex) and the chosen
-#      Claude Code profile(s) (auto-detected if multiple exist, or set via CLAUDE_CONFIG_DIR /
-#      --claude-dir); when Antigravity is installed, links its whole ~/.gemini/config/skills to the
-#      hub; removes links to skills deleted from the repo;
-#   2. installs the decision-model MCP server (needs Node.js 22+) and registers it with the
-#      `claude` (per selected profile), `codex` and `agy` CLIs that are present, unless --no-mcp;
-#   3. only with --personal: links personal/AGENTS.md, the one global instructions file, as each
-#      selected profile's CLAUDE.md, ~/.codex/AGENTS.md and (with Antigravity) ~/.gemini/AGENTS.md.
-#      Without the flag your own instruction files are untouched.
+# Profiles: Claude Code (CLAUDE_CONFIG_DIR) and Codex (CODEX_HOME) can each have several
+# installations; they are detected (~/.claude, ~/.claude-*, ~/.config/claude*; ~/.codex, ~/.codex-*),
+# asked on a terminal when there are several, or set with the env var / --claude-dir / --codex-dir.
+# Antigravity has one ~/.gemini per user.
+#
+# What it does, idempotently:
+#   1. Skills: ~/.agents/skills is the hub (Codex reads it natively, `npx skills` installs there).
+#      Links each skills/<name> into the hub and every Claude profile; Antigravity's whole
+#      ~/.gemini/config/skills becomes a link to the hub. Then every Claude profile and the hub get
+#      the union of their skills (per-skill links, so each profile keeps its own org-scoped
+#      skills/synced/); same-named different skills are reported, never replaced. Removes links to
+#      skills deleted from the repo.
+#   2. Installs the decision-model MCP server (needs Node.js 22+) and registers it with every Claude
+#      and Codex profile and with `agy`, unless --no-mcp.
+#   3. Rules, opt-in: --rules <file> links that file as every host's global instructions (each
+#      Claude profile's CLAUDE.md, each Codex profile's AGENTS.md, ~/.gemini/AGENTS.md);
+#      --personal does it with mstack's personal/AGENTS.md. Without either, instruction files are
+#      untouched.
+#   4. Opt-in, across Claude profiles, from the first selected one (~/.claude when selected):
+#      --align-profiles links settings*.json and installs the same user-scope plugins;
+#      --align-mcp copies user-scope MCP servers (servers with env/headers: picked on a terminal,
+#      otherwise skipped unless --include-secrets).
 # Anything it replaces that is not already the right symlink is moved to ~/.mstack-backup/<timestamp>/.
 set -euo pipefail
 
@@ -38,19 +53,24 @@ fi
 
 REPO="$(cd "$(dirname "$SELF")" && pwd -P)"
 BACKUP="$HOME/.mstack-backup/$(date +%Y%m%d-%H%M%S)"
-DRY=0 MCP_ON=1 PERSONAL=0
-EXPLICIT_CLAUDE_DIRS=()
+DRY=0 MCP_ON=1 RULES="" ALIGN_PROFILES=0 ALIGN_MCP=0 INCLUDE_SECRETS=0
+EXPLICIT_CLAUDE_DIRS=() EXPLICIT_CODEX_DIRS=()
+need_arg() { (($# >= 2)) || { echo "mstack: $1 requires a value" >&2; exit 2; }; }
 while (($#)); do
   case "$1" in
     --dry-run) DRY=1 ;;
     --no-mcp) MCP_ON=0 ;;
-    --personal) PERSONAL=1 ;;
-    --claude-dir)
-      (($# >= 2)) || { echo "mstack: --claude-dir requires a path" >&2; exit 2; }
-      EXPLICIT_CLAUDE_DIRS+=("$2"); shift ;;
-    --claude-dir=*)
-      EXPLICIT_CLAUDE_DIRS+=("${1#*=}") ;;
-    *) echo "mstack: unknown option $1 (use --dry-run, --no-mcp, --personal, --claude-dir <path>)" >&2; exit 2 ;;
+    --personal) RULES="$REPO/personal/AGENTS.md" ;;
+    --rules) need_arg "$@"; RULES="$2"; shift ;;
+    --claude-dir) need_arg "$@"; EXPLICIT_CLAUDE_DIRS+=("$2"); shift ;;
+    --claude-dir=*) EXPLICIT_CLAUDE_DIRS+=("${1#*=}") ;;
+    --codex-dir) need_arg "$@"; EXPLICIT_CODEX_DIRS+=("$2"); shift ;;
+    --codex-dir=*) EXPLICIT_CODEX_DIRS+=("${1#*=}") ;;
+    --align-profiles) ALIGN_PROFILES=1 ;;
+    --align-mcp) ALIGN_MCP=1 ;;
+    --include-secrets) INCLUDE_SECRETS=1 ;;
+    -h|--help) sed -n '2,36p' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "mstack: unknown option $1 (see --help)" >&2; exit 2 ;;
   esac
   shift
 done
@@ -59,154 +79,30 @@ run() { if ((DRY)); then echo "  would: $*"; else "$@"; fi; }
 runq() { if ((DRY)); then echo "  would: $*"; else "$@" >/dev/null; fi; }
 warn() { echo "mstack: $*" >&2; }
 
-norm_dir() {
-  local d="$1"
-  if [[ "$d" == "~" || "$d" == "~/"* ]]; then d="$HOME${d#\~}"; fi
-  if [[ "$d" != "/" ]]; then d="${d%/}"; fi
-  printf '%s\n' "$d"
-}
-
-pretty_dir() {
-  case "$1" in
-    "$HOME") printf '~\n' ;;
-    "$HOME"/*) printf '~/%s\n' "${1#"$HOME"/}" ;;
-    *) printf '%s\n' "$1" ;;
-  esac
-}
-
-profile_label() {
-  local dir="$1" cfg
-  if [[ "$dir" == "$HOME/.claude" ]]; then cfg="$HOME/.claude.json"
-  else cfg="$dir/.claude.json"; fi
-  [[ -f "$cfg" ]] || return 0
-  if command -v node >/dev/null; then
-    node -e '
-      try {
-        const a = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).oauthAccount || {};
-        const out = [a.emailAddress, a.organizationName].filter(Boolean).join(" — ");
-        if (out) process.stdout.write(out);
-      } catch {}
-    ' "$cfg" 2>/dev/null || true
-  elif command -v python3 >/dev/null; then
-    python3 -c '
-import json, sys
-try:
-    a = json.load(open(sys.argv[1])).get("oauthAccount") or {}
-    out = " — ".join(v for v in (a.get("emailAddress"), a.get("organizationName")) if v)
-    if out: sys.stdout.write(out)
-except Exception:
-    pass
-' "$cfg" 2>/dev/null || true
-  fi
-}
-
-CLAUDE_DIRS=()
-add_claude_dir() {
-  local d existing
-  d="$(norm_dir "$1")"
-  if ((${#CLAUDE_DIRS[@]})); then
-    for existing in "${CLAUDE_DIRS[@]}"; do
-      [[ "$existing" == "$d" ]] && return 0
-    done
-  fi
-  CLAUDE_DIRS+=("$d")
-}
-
-discover_claude_dirs() {
-  local d base
-  if [[ -d "$HOME/.claude" || -f "$HOME/.claude.json" ]]; then
-    add_claude_dir "$HOME/.claude"
-  fi
-  for d in "$HOME"/.claude-* "$HOME"/.claude_* "$HOME"/.config/claude "$HOME"/.config/claude-* "$HOME"/.config/claude_*; do
-    [[ -d "$d" ]] || continue
-    base="$(basename "$d")"
-    case "$base" in *backup*|*.bak*) continue ;; esac
-    if [[ -f "$d/.claude.json" || -f "$d/settings.json" || -d "$d/skills" || -d "$d/projects" ]]; then
-      add_claude_dir "$d"
-    fi
-  done
-  if ((${#CLAUDE_DIRS[@]} == 0)); then
-    add_claude_dir "$HOME/.claude"
-  fi
-}
-
-select_claude_dirs() {
-  local d
-  if ((${#EXPLICIT_CLAUDE_DIRS[@]})); then
-    for d in "${EXPLICIT_CLAUDE_DIRS[@]}"; do add_claude_dir "$d"; done
-    return 0
-  fi
-  if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
-    add_claude_dir "$CLAUDE_CONFIG_DIR"
-    return 0
-  fi
-  discover_claude_dirs
-  if ((${#CLAUDE_DIRS[@]} <= 1)); then return 0; fi
-  if [[ -n "${CI:-}" ]] || ! ( : </dev/tty ) 2>/dev/null; then
-    CLAUDE_DIRS=("$HOME/.claude")
-    warn "multiple Claude profiles found; defaulting to ~/.claude (set CLAUDE_CONFIG_DIR or pass --claude-dir)"
-    return 0
-  fi
-
-  local detected=("${CLAUDE_DIRS[@]}")
-  local i label answer tok bad
-  {
-    echo "Multiple Claude Code profiles found:"
-    for ((i = 0; i < ${#detected[@]}; i++)); do
-      label="$(profile_label "${detected[$i]}")"
-      if [[ -n "$label" ]]; then
-        printf "  %d) %s (%s)\n" "$((i + 1))" "$(pretty_dir "${detected[$i]}")" "$label"
-      else
-        printf "  %d) %s\n" "$((i + 1))" "$(pretty_dir "${detected[$i]}")"
-      fi
-    done
-  } >/dev/tty
-
-  while true; do
-    printf "Install into [all, or numbers e.g. 1 2] (default: all): " >/dev/tty
-    if ! IFS= read -r answer </dev/tty; then
-      CLAUDE_DIRS=("${detected[@]}")
-      return 0
-    fi
-    answer="${answer//,/ }"
-    answer="$(printf '%s' "$answer" | awk '{$1=$1; print}')"
-    case "$answer" in
-      ""|all|ALL|a|A|\*)
-        CLAUDE_DIRS=("${detected[@]}")
-        return 0
-        ;;
-    esac
-    CLAUDE_DIRS=()
-    bad=0
-    for tok in $answer; do
-      if [[ "$tok" =~ ^[0-9]+$ ]] && ((tok >= 1 && tok <= ${#detected[@]})); then
-        add_claude_dir "${detected[$((tok - 1))]}"
-      else
-        bad=1
-        break
-      fi
-    done
-    if ((bad == 0 && ${#CLAUDE_DIRS[@]} > 0)); then
-      return 0
-    fi
-    printf "Invalid choice '%s'. Enter 'all' or numbers between 1 and %d.\n" "$answer" "${#detected[@]}" >/dev/tty
-  done
-}
-
 . "$REPO/lib/links.sh"
+. "$REPO/lib/profiles.sh"
 
-select_claude_dirs
+if [[ -n "$RULES" ]]; then
+  RULES="$(norm_dir "$RULES")"
+  [[ -f "$RULES" ]] || { echo "mstack: --rules: $RULES is not a file" >&2; exit 2; }
+  # Link to the real file, so a rules file that is itself a link (e.g. a profile's CLAUDE.md) is not chained.
+  [[ "$RULES" == "$REPO/personal/AGENTS.md" ]] || RULES="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$RULES")"
+fi
 
-# Every host sees the same skills. The repo's skills are linked into the hub (~/.agents/skills,
-# read by Codex) and into each Claude profile; Antigravity's whole skills dir links to the hub,
-# so it also sees everything else installed there. Antigravity only when it is installed.
-HUB="$HOME/.agents/skills"
-SKILL_DIRS=("$HUB")
-for cdir in "${CLAUDE_DIRS[@]}"; do SKILL_DIRS+=("$cdir/skills"); done
+select_profiles claude ${EXPLICIT_CLAUDE_DIRS[@]+"${EXPLICIT_CLAUDE_DIRS[@]}"}
+CLAUDE_DIRS=(${SELECTED[@]+"${SELECTED[@]}"})
+select_profiles codex ${EXPLICIT_CODEX_DIRS[@]+"${EXPLICIT_CODEX_DIRS[@]}"}
+CODEX_DIRS=(${SELECTED[@]+"${SELECTED[@]}"})
 AGY=0
 if command -v agy >/dev/null || [[ -d "$HOME/.gemini/config" ]]; then AGY=1; fi
+for d in ${CLAUDE_DIRS[@]+"${CLAUDE_DIRS[@]}"}; do echo "Claude profile: $(pretty_dir "$d")"; done
+for d in ${CODEX_DIRS[@]+"${CODEX_DIRS[@]}"}; do echo "Codex profile: $(pretty_dir "$d")"; done
+((AGY)) && echo "Antigravity: ~/.gemini"
 
-# 1. Skills
+# 1. Skills: one hub, every host sees the same skills.
+HUB="$HOME/.agents/skills"
+SKILL_DIRS=("$HUB")
+for cdir in ${CLAUDE_DIRS[@]+"${CLAUDE_DIRS[@]}"}; do SKILL_DIRS+=("$cdir/skills"); done
 if ((AGY)); then link_skills_dir "$HOME/.gemini/config/skills" "$HUB"; fi
 for sdir in "${SKILL_DIRS[@]}"; do
   for dir in "$REPO"/skills/*/; do
@@ -220,39 +116,32 @@ for sdir in "${SKILL_DIRS[@]}"; do
     fi
   done
 done
+# Skills installed elsewhere (by hand, `npx skills`, a plugin...): each profile's go into the hub,
+# then the hub's go into every profile. Codex's own $CODEX_HOME/skills is left to Codex.
+for cdir in ${CLAUDE_DIRS[@]+"${CLAUDE_DIRS[@]}"}; do link_missing "$cdir/skills" "$HUB"; done
+for cdir in ${CLAUDE_DIRS[@]+"${CLAUDE_DIRS[@]}"}; do link_missing "$HUB" "$cdir/skills" quiet; done
 
 # 2. Decision-model MCP server
-claude_in() {
-  local dir="$1"; shift
-  if [[ "$dir" == "$HOME/.claude" ]]; then
-    env -u CLAUDE_CONFIG_DIR claude "$@"
-  else
-    CLAUDE_CONFIG_DIR="$dir" claude "$@"
-  fi
-}
+mcp_matches() { grep -qiF "command: $NODE" <<<"$1" && grep -qiF "args: $SERVER" <<<"$1"; }
 
 register_claude() {
   local dir="$1" current
   command -v claude >/dev/null || return 0
-  current="$(claude_in "$dir" mcp get decision-model 2>/dev/null || true)"
-  if grep -qiF "command: $NODE" <<<"$current" && grep -qiF "args: $SERVER" <<<"$current"; then return 0; fi
-  if [[ -n "$current" ]]; then
-    runq claude_in "$dir" mcp remove decision-model --scope user
-  fi
-  runq claude_in "$dir" mcp add --scope user --transport stdio decision-model -- "$NODE" "$SERVER"
+  current="$(profile_run claude "$dir" claude mcp get decision-model 2>/dev/null || true)"
+  mcp_matches "$current" && return 0
+  [[ -n "$current" ]] && runq profile_run claude "$dir" claude mcp remove decision-model --scope user
+  runq profile_run claude "$dir" claude mcp add --scope user --transport stdio decision-model -- "$NODE" "$SERVER"
   ((DRY)) || echo "registered decision-model MCP with claude ($(pretty_dir "$dir"))"
 }
 
 register_codex() {
-  local current
+  local dir="$1" current
   command -v codex >/dev/null || return 0
-  current="$(codex mcp get decision-model 2>/dev/null || true)"
-  if grep -qiF "command: $NODE" <<<"$current" && grep -qiF "args: $SERVER" <<<"$current"; then return 0; fi
-  if [[ -n "$current" ]]; then
-    runq codex mcp remove decision-model
-  fi
-  runq codex mcp add decision-model -- "$NODE" "$SERVER"
-  ((DRY)) || echo "registered decision-model MCP with codex"
+  current="$(profile_run codex "$dir" codex mcp get decision-model 2>/dev/null || true)"
+  mcp_matches "$current" && return 0
+  [[ -n "$current" ]] && runq profile_run codex "$dir" codex mcp remove decision-model
+  runq profile_run codex "$dir" codex mcp add decision-model -- "$NODE" "$SERVER"
+  ((DRY)) || echo "registered decision-model MCP with codex ($(pretty_dir "$dir"))"
 }
 
 register_agy() {
@@ -264,7 +153,7 @@ register_agy() {
 }
 
 install_mcp() {
-  local mcp="$REPO/mcp/decision-model" sum major cdir
+  local mcp="$REPO/mcp/decision-model" sum major dir
   NODE="$(command -v node || true)"
   SERVER="$mcp/src/server.mjs"
   [[ -n "$NODE" ]] || { warn "Node.js not found: skipping the decision-model MCP (needs Node 22+)"; return 0; }
@@ -277,10 +166,8 @@ install_mcp() {
     run npm --prefix "$mcp" ci --omit=dev --ignore-scripts --no-audit --no-fund --update-notifier=false --loglevel=error
     ((DRY)) || { echo "$sum" > "$mcp/node_modules/.mstack-lock"; echo "installed decision-model MCP dependencies"; }
   fi
-  for cdir in "${CLAUDE_DIRS[@]}"; do
-    register_claude "$cdir"
-  done
-  register_codex
+  for dir in ${CLAUDE_DIRS[@]+"${CLAUDE_DIRS[@]}"}; do register_claude "$dir"; done
+  for dir in ${CODEX_DIRS[@]+"${CODEX_DIRS[@]}"}; do register_codex "$dir"; done
   register_agy
 
   # The registration pins this node binary: rerun the installer after upgrading or removing it.
@@ -288,13 +175,27 @@ install_mcp() {
 }
 ((MCP_ON)) && install_mcp
 
-# 3. Personal global instructions (opt-in): one file, linked under each host's own name.
-if ((PERSONAL)); then
-  for cdir in "${CLAUDE_DIRS[@]}"; do
-    link "$REPO/personal/AGENTS.md" "$cdir/CLAUDE.md"
-  done
-  link "$REPO/personal/AGENTS.md" "$HOME/.codex/AGENTS.md"
-  if ((AGY)); then link "$REPO/personal/AGENTS.md" "$HOME/.gemini/AGENTS.md"; fi
+# 3. Global instructions (opt-in): one file, linked under each host's own name.
+if [[ -n "$RULES" ]]; then
+  for dir in ${CLAUDE_DIRS[@]+"${CLAUDE_DIRS[@]}"}; do link "$RULES" "$dir/CLAUDE.md"; done
+  for dir in ${CODEX_DIRS[@]+"${CODEX_DIRS[@]}"}; do link "$RULES" "$dir/AGENTS.md"; done
+  if ((AGY)); then link "$RULES" "$HOME/.gemini/AGENTS.md"; fi
+fi
+
+# 4. Across Claude profiles (opt-in): what cannot be a shared link, copied from the first profile.
+if ((ALIGN_PROFILES || ALIGN_MCP)); then
+  if ((${#CLAUDE_DIRS[@]} < 2)); then
+    warn "--align-profiles/--align-mcp need two or more Claude profiles; nothing to align"
+  else
+    . "$REPO/lib/claude-align.sh"
+    SRC="${CLAUDE_DIRS[0]}" TARGETS=("${CLAUDE_DIRS[@]:1}")
+    echo "aligning Claude profiles from $(pretty_dir "$SRC")"
+    if ((ALIGN_PROFILES)); then
+      for dir in "${TARGETS[@]}"; do align_settings "$SRC" "$dir"; done
+      align_plugins "$SRC" "${TARGETS[@]}"
+    fi
+    if ((ALIGN_MCP)); then align_mcp "$SRC" "${TARGETS[@]}"; fi
+  fi
 fi
 
 echo "mstack installed from $REPO"

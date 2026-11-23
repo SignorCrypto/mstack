@@ -8,7 +8,7 @@ My daily setup for **Claude Code**, **Codex** and **Antigravity**: the skills I 
 curl -fsSL https://raw.githubusercontent.com/SignorCrypto/mstack/main/install.sh | bash
 ```
 
-It clones (or updates) the repo into `~/.mstack`, links the skills into `~/.agents/skills`, the shared skills hub that Codex reads, and into every Claude Code profile; when Antigravity is installed its whole `~/.gemini/config/skills` becomes a link to the hub, so it sees everything installed there too, and registers the `decision-model` MCP server with each host's CLI (`claude`, `codex`, `agy`; Node.js 22+; skip with `--no-mcp`). Your own instruction files are untouched unless you opt in with `--personal`, and anything replaced is backed up to `~/.mstack-backup/`.
+It clones (or updates) the repo into `~/.mstack`, links the skills into `~/.agents/skills`, the shared skills hub that Codex reads, and into every Claude Code profile; when Antigravity is installed its whole `~/.gemini/config/skills` becomes a link to the hub, so it sees everything installed there too, and registers the `decision-model` MCP server with each host's CLI (`claude`, `codex`, `agy`; Node.js 22+; skip with `--no-mcp`). Then every Claude profile and the hub get the union of their skills, so a skill installed anywhere later (by hand, `npx skills`) reaches every host on the next run: rerunning the installer is how you keep everything aligned. Your own instruction files are untouched unless you opt in with `--rules <file>` or `--personal`, and anything replaced is backed up to `~/.mstack-backup/`.
 
 Preview changes first with `-s -- --dry-run`. Run the same command again to update.
 
@@ -42,7 +42,7 @@ Providers, ZDR policy, routing, and key sources: [mcp/decision-model/README.md](
 
 ## Personal instructions (`personal/`)
 
-[`personal/AGENTS.md`](personal/AGENTS.md) holds the author's user-level rules that tie the skills together. It is the only copy: `personal/CLAUDE.md` is a symlink to it, and `--personal` links it under each host's own name (`CLAUDE.md` per Claude profile, `~/.codex/AGENTS.md`, `~/.gemini/AGENTS.md`), so every orchestrator follows the same rules:
+[`personal/AGENTS.md`](personal/AGENTS.md) holds the author's user-level rules that tie the skills together. It is the only copy: `personal/CLAUDE.md` is a symlink to it, and `--personal` links it under each host's own name (`CLAUDE.md` per Claude profile, `AGENTS.md` per Codex profile, `~/.gemini/AGENTS.md`), so every orchestrator follows the same rules. To share your own rules file the same way instead, use `--rules <file>` (e.g. `--rules ~/.claude/CLAUDE.md`):
 
 - **Problem-first workflow** — root-cause reasoning, extending existing code over forking variants, before/after visuals, measured optimizations
 - **Model routing** — cost/intelligence/taste matrix, default roles, and how to delegate across Claude, Codex, and Gemini Neon (T3 Code's delegation, or the `call-*` skills from a standalone CLI)
@@ -54,15 +54,18 @@ They are **not installed by default**. Read and adapt them for your own setup, o
 ./install.sh --personal
 ```
 
-## Multiple Claude Code accounts
+## Multiple accounts (profiles)
 
-If you use multiple Claude Code profiles via `CLAUDE_CONFIG_DIR` (e.g. `~/.claude` and `~/.claude-*`):
+Claude Code (`CLAUDE_CONFIG_DIR`) and Codex (`CODEX_HOME`) can each have several installations. Antigravity has one `~/.gemini` per user.
 
-- **`install.sh`** auto-detects installed profiles (showing email and organization) and asks which ones to install into. Target profiles non-interactively with `CLAUDE_CONFIG_DIR=<path>` or `--claude-dir <path>` (repeatable).
-- **[`sync-claude-profiles.sh`](sync-claude-profiles.sh)** syncs skills (including external ones, never touching Claude's org-scoped `synced/` dir), `CLAUDE.md`, `settings*.json`, user-scope MCP servers (via `claude mcp add-json` over stdin, flagging servers with `env`/`headers`), and user-scope plugins across profiles on demand. With `--hosts` skills meet in the hub in both directions (skills installed only in Claude reach Codex and Antigravity, skills installed only in the hub, e.g. with `npx skills`, reach Claude; same-named different skills are reported, never replaced), and `CLAUDE.md` goes to Codex and Antigravity as their `AGENTS.md`. Claude profiles keep per-skill links rather than one folder link because each keeps its own org-scoped `skills/synced/`:
+- **Detection**: `install.sh` finds `~/.claude`, `~/.claude-*`, `~/.config/claude*`, `~/.codex` and `~/.codex-*`, shows each Claude profile's email and organization, and asks which to install into when there are several. Non-interactively: the env var, or `--claude-dir <path>` / `--codex-dir <path>` (repeatable). Every selected profile gets the skills, the decision-model MCP server and, with `--rules`/`--personal`, the rules.
+- **What links cannot share**, opt-in and copied from the first selected Claude profile to the others:
+  - `--align-profiles`: `settings*.json` (as links to the first profile's) and user-scope plugins with their marketplaces;
+  - `--align-mcp`: user-scope MCP servers, via `claude mcp add-json` over stdin, never by editing `.claude.json` (it also holds each account's sign-in). Servers with `env`/`headers` may hold secrets: on a terminal you pick which to copy, otherwise they are skipped unless `--include-secrets`.
+- Claude profiles keep per-skill links rather than one folder link because each keeps its own org-scoped `skills/synced/`; Codex's own `$CODEX_HOME/skills` is left to Codex (every Codex profile reads the hub).
+- The `call-claude` and `call-codex` launchers take `--profile <dir>` to run on another account.
 
 ```sh
-./sync-claude-profiles.sh                         # interactive wizard
-./sync-claude-profiles.sh --all --dry-run         # preview a full sync (includes --hosts)
-./sync-claude-profiles.sh --skills --hosts        # skills into the other profiles, Codex and Antigravity
+./install.sh --dry-run                               # preview, including the detected profiles
+./install.sh --claude-dir ~/.claude --claude-dir ~/.claude-work --align-profiles --align-mcp
 ```

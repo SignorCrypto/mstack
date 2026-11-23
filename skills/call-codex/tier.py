@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Print the service tier a Codex run used, e.g. `priority` (Fast) or `default`.
 
-Usage: tier.py <thread-id>   (the thread_id in the launcher's JSON summary line)
+Usage: tier.py [--profile <codex-home>] <thread-id>   (the thread_id in the launcher's JSON summary line)
 
-Reads the session files (~/.codex/sessions), falling back to ~/.codex/logs_2.sqlite.
+Reads the session files ($CODEX_HOME/sessions), falling back to $CODEX_HOME/logs_2.sqlite.
 Child threads (a review's reviewer) are found through the session files, whose
 `session_id` is the parent thread id.
 """
@@ -39,11 +39,16 @@ def session_tiers(tid):
 
 
 def main():
-    if len(sys.argv) != 2:
+    global CODEX_HOME
+    args = sys.argv[1:]
+    if args[:1] == ["--profile"] and len(args) == 3:
+        CODEX_HOME = Path(args[1]).expanduser().resolve()
+        args = args[2:]
+    if len(args) != 1:
         sys.exit(__doc__)
     db = sqlite3.connect(f"file:{CODEX_HOME / 'logs_2.sqlite'}?mode=ro", uri=True)
     result = {}
-    for tid in thread_ids(sys.argv[1]):
+    for tid in thread_ids(args[0]):
         tiers = session_tiers(tid)
         if not tiers:
             rows = db.execute(

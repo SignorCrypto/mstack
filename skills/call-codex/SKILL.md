@@ -27,8 +27,9 @@ To see the live catalog (ids, context, reasoning levels): `python3 ~/.agents/ski
 - **Effort**: `high` on tasks and reviews alike, never `config.toml`'s value (Codex Desktop rewrites it). Pass `--effort <level>` only if the user asks for another level; a level the model does not list in the catalog is an error. `--effort config` keeps `config.toml`'s.
 - **Sandbox**: Codex's own (Seatbelt on macOS), read-only by default; `--write` is workspace-write: the working dir (`--cwd`), every `--add-dir` and the user temp dir, not the shared `/tmp`. Approvals are off (`never`): a headless call cannot prompt.
 - **Refuses**: `--write` with `astra` or on a review, a task without a non-empty `--prompt-file` (it never reads the caller's stdin), unknown options.
+- **Profile**: the current `CODEX_HOME` (default `~/.codex`). `--profile <dir>` runs on another Codex installation (e.g. `~/.codex-work`); `image.py` and `tier.py` take it too.
 - **Sessions are saved** (never `--ephemeral`), so every call shows up in Codex's history with its prompts, responses and token usage.
-- **Prints** one line on stderr before starting, e.g. `codex launcher: gpt-6.2-sol fast effort=high sandbox=read-only cwd=...`: the resolved id and tier, for naming stages (see Visibility). Then the final message, then one JSON line `{"ok", "thread_id", "model", "fast", "usage"}`. Exit 1 when the turn failed or came back empty.
+- **Prints** one line on stderr before starting, e.g. `codex launcher: gpt-6.2-sol fast effort=high sandbox=read-only profile=... cwd=...`: the resolved id and tier, for naming stages (see Visibility). Then the final message, then one JSON line `{"ok", "thread_id", "model", "fast", "usage"}`. Exit 1 when the turn failed or came back empty.
 - `--dry-run` prints the resolved model, tier, effort and the exact `codex` command without starting it.
 
 ## How to call

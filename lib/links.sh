@@ -1,4 +1,4 @@
-# Shared by install.sh and sync-claude-profiles.sh (sourced, not run): symlink helpers.
+# Sourced by install.sh: symlink helpers.
 # The caller defines run (prints instead of acting in dry-run), warn, and BACKUP (a backup dir).
 #
 # ~/.agents/skills is the skills hub: Codex reads it natively and `npx skills` installs there.
@@ -57,7 +57,7 @@ link_missing() {
 # that HUB lacks are moved into HUB first, so every host gains them instead of losing them.
 link_skills_dir() {
   local path="$1" hub="$2" e n
-  run mkdir -p "$hub"
+  [[ -d "$hub" ]] || run mkdir -p "$hub"
   if [[ -d "$path" && ! -L "$path" ]]; then
     while IFS= read -r e; do
       n="$(basename "$e")"

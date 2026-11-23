@@ -5,7 +5,7 @@
 #   codex.sh review [--base <ref> | --uncommitted | --commit <sha>] [--prompt-file <focus>]
 #                   [--adversarial] [options]
 #   options: [--model <sol|astra|family|id>] [--effort <level|config>] [--fast | --no-fast]
-#            [--cwd <dir>] [--add-dir <dir>]... [--resume <thread-id>] [--dry-run]
+#            [--profile <codex-home>] [--cwd <dir>] [--add-dir <dir>]... [--resume <thread-id>] [--dry-run]
 #
 # - Model: sol unless --model says otherwise (a family or an exact id, resolved live from the
 #   Codex catalog; unknown names are an error). astra never writes (--write is refused).
@@ -13,6 +13,7 @@
 # - Effort: high, never config.toml's (Codex Desktop rewrites it); `config` keeps config.toml's.
 #   A level the model does not list in the catalog is an error.
 # - Sandbox: Codex's own, read-only by default; --write = workspace-write (task only).
+# - Profile: the current CODEX_HOME (or ~/.codex); --profile picks another Codex installation.
 # - Review scope: --base / --uncommitted / --commit, else the working tree if dirty, else the
 #   branch against the default branch. --prompt-file adds focus; --adversarial prepends
 #   adversarial.md. Sessions are saved (never --ephemeral), so they show up in Codex's history.
@@ -25,7 +26,7 @@ HERE="$(cd "$(dirname "$0")" && pwd -P)"
 
 COMMAND="task"
 case "${1:-}" in task|review) COMMAND="$1"; shift ;; esac
-PROMPT_FILE="" WRITE=0 MODEL="sol" EFFORT="high" FAST="" CWD="$PWD" RESUME="" DRY=0
+PROMPT_FILE="" WRITE=0 MODEL="sol" EFFORT="high" FAST="" PROFILE_DIR="" CWD="$PWD" RESUME="" DRY=0
 SCOPE="" SCOPE_ARG="" ADVERSARIAL=0
 ADD_DIRS=()
 while (($#)); do
@@ -36,6 +37,7 @@ while (($#)); do
     --effort) EFFORT="${2:-}"; shift ;;
     --fast) [[ "$FAST" == 0 ]] && die "use --fast or --no-fast, not both"; FAST=1 ;;
     --no-fast) [[ "$FAST" == 1 ]] && die "use --fast or --no-fast, not both"; FAST=0 ;;
+    --profile) PROFILE_DIR="${2:-}"; shift ;;
     --cwd) CWD="${2:-}"; shift ;;
     --add-dir) ADD_DIRS+=("${2:-}"); shift ;;
     --resume) RESUME="${2:-}"; shift ;;
@@ -44,7 +46,7 @@ while (($#)); do
     --uncommitted) SCOPE="uncommitted" ;;
     --adversarial) ADVERSARIAL=1 ;;
     --dry-run) DRY=1 ;;
-    -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option $1" ;;
   esac
   shift
@@ -52,6 +54,11 @@ done
 
 command -v codex >/dev/null || die "codex not found: npm i -g @openai/codex, then run codex once to sign in"
 CWD="$(cd "$CWD" 2>/dev/null && pwd -P)" || die "--cwd does not exist"
+if [[ -n "$PROFILE_DIR" ]]; then
+  PROFILE_DIR="$(cd "${PROFILE_DIR/#\~/$HOME}" 2>/dev/null && pwd -P)" || die "--profile does not exist"
+  # Inherited by models.py (`codex debug models`) and by the codex run itself.
+  if [[ "$PROFILE_DIR" == "$(cd "$HOME/.codex" 2>/dev/null && pwd -P)" ]]; then unset CODEX_HOME; else export CODEX_HOME="$PROFILE_DIR"; fi
+fi
 if [[ "$COMMAND" == task ]]; then
   [[ -n "$PROMPT_FILE" && -s "$PROMPT_FILE" ]] || die "a task needs --prompt-file <non-empty file> (stdin is never read)"
   [[ -z "$SCOPE" && "$ADVERSARIAL" == 0 ]] || die "--base/--commit/--uncommitted/--adversarial are review options"
@@ -134,7 +141,7 @@ trap 'rm -f "$PROMPT" "$ERR"' EXIT
 [[ -s "$PROMPT" ]] && CMD+=(-)
 
 WHERE="sandbox=$SANDBOX"; [[ "$COMMAND" == review ]] && WHERE="review=$SCOPE${SCOPE_ARG:+:$SCOPE_ARG}"
-echo "codex launcher: $ID$( ((FAST)) && echo ' fast') effort=$EFFORT $WHERE cwd=$CWD" >&2
+echo "codex launcher: $ID$( ((FAST)) && echo ' fast') effort=$EFFORT $WHERE profile=${CODEX_HOME:-$HOME/.codex} cwd=$CWD" >&2
 if ((DRY)); then
   python3 -c 'import json,sys; print(json.dumps({"model": sys.argv[1], "fast": sys.argv[2] == "1",
     "effort": sys.argv[3], "command": sys.argv[4:]}, indent=2))' "$ID" "$FAST" "$EFFORT" "${CMD[@]}"

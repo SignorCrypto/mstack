@@ -14,6 +14,7 @@ Usage:
   image.py --prompt-file p.md --out icon.png --transparent
   image.py --prompt-file p.md --out hero-v2.png --ref /abs/hero.png [--ref ...]
   image.py --prompt-file p.md --out variant.png --n 3   # variant-1.png .. variant-3.png
+  image.py ... --profile ~/.codex-work                  # another Codex installation
 
 Prints one JSON line: {"ok": true, "files": [...], "thread": "...", "codex_message": "..."}.
 Exits non-zero with {"ok": false, "error": "..."} on failure. Never overwrites an
@@ -29,8 +30,6 @@ import tempfile
 from pathlib import Path
 
 SKILL = Path(__file__).resolve().parent
-CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-IMAGES = CODEX_HOME / "generated_images"
 
 
 def fail(msg, code=1):
@@ -79,7 +78,11 @@ def main():
     ap.add_argument("--ref", action="append", default=[], type=Path, help="reference / edit-target image (repeatable)")
     ap.add_argument("--model", help="Codex model id; default: current `sol` from models.py")
     ap.add_argument("--overwrite", action="store_true")
+    ap.add_argument("--profile", type=Path, help="Codex installation (CODEX_HOME); default: the current one")
     a = ap.parse_args()
+    if a.profile:
+        os.environ["CODEX_HOME"] = str(a.profile.expanduser().resolve())  # inherited by codex.sh
+    images = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "generated_images"
 
     if not 1 <= a.n <= 4:
         fail("--n must be between 1 and 4")
@@ -129,11 +132,11 @@ def main():
     if r.returncode != 0 or not thread:
         fail(f"codex task failed (exit {r.returncode}): {summary.get('error') or (r.stdout + r.stderr).strip()[-1500:]}")
 
-    generated = sorted((IMAGES / thread).glob("*.png"), key=lambda p: p.stat().st_mtime) \
-        if (IMAGES / thread).is_dir() else []
+    generated = sorted((images / thread).glob("*.png"), key=lambda p: p.stat().st_mtime) \
+        if (images / thread).is_dir() else []
     message = lines[-2] if len(lines) > 1 else ""
     if len(generated) < a.n:
-        fail(f"expected {a.n} image(s) in {IMAGES / thread}, found {len(generated)}; codex said: {message}")
+        fail(f"expected {a.n} image(s) in {images / thread}, found {len(generated)}; codex said: {message}")
 
     out.parent.mkdir(parents=True, exist_ok=True)
     for src, dst in zip(generated[-a.n:], dests):
