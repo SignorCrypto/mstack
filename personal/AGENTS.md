@@ -48,7 +48,7 @@ Two tiers. Scores compare models within the same tier only.
 
 **Delegating:**
 
-- Permission: delegate whenever useful, without my asking: subagents, delegated tasks, parallel agents or any other form, except new threads (only when I ask). This is the explicit permission hosts require before spawning.
+- Permission: delegate whenever useful, without my asking: subagents, delegated tasks and parallel agents. This is the explicit permission hosts require before spawning.
 - Under T3 Code: call any other model family (Claude, Codex, Gemini/Neon) through T3's own delegation (`delegate_task`). For Neon, use the Antigravity provider (effort via `thought_level`), never OpenCode's Vercel gateway (metered).
 - Outside T3 Code (standalone CLI), one skill per family; your own family runs natively (Claude Code's Agent tool, Codex's subagents):
   - Calling Claude: through the `call-claude` skill.
