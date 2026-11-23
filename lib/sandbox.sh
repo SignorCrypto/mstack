@@ -6,7 +6,7 @@
 #                                    write except the ENTRYs, the user temp/cache dirs and the TTY.
 #                                    An ENTRY is a directory (allowed with everything below it) or
 #                                    "prefix:<path>" (every path that starts with <path>, e.g.
-#                                    "prefix:$HOME/.claude" covers ~/.claude, ~/.claude-team and
+#                                    "prefix:$HOME/.claude" covers ~/.claude, ~/.claude-work and
 #                                    ~/.claude.json).
 #
 # The agent inside runs with its own permission prompts off: headless agents cannot prompt, and
