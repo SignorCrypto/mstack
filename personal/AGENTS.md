@@ -5,7 +5,7 @@
 I think problem first, then logic: talk to me in those terms.
 
 - Safety: never perform a destructive action without my explicit consent, including on the computer and on databases.
-- Subagents: you may spin up subagents when useful.
+- Finishing: leave nothing half done. Everything you find ends fixed or dropped, never "open", "recorded" or "left for later". Valid (a user path can reach it, even if it has not happened yet, even if it is small) → fix it in this turn and verify it. Not valid → drop it and do not mention it. The only thing you bring me is a step that needs my consent (destructive, a new feature or redesign, a product rule): ask it in this turn with your recommendation, then carry it out.
 - Solving: find the root cause and reason about the logic first (why it happens, what rule would make it impossible). Propose the solution as that logic, not as a stack of patches.
 - Reusing: before adding anything that does a job (component, helper, endpoint, script, dependency, …), find what already does it and extend it. If it almost fits, evolve it for every caller instead of forking a variant: two implementations of one job diverge, and then one is wrong.
 - Explaining: for outputs, findings and proposals, lead with the reasoning and the why, then the details.
@@ -48,6 +48,7 @@ Two tiers. Scores compare models within the same tier only.
 
 **Delegating:**
 
+- Permission: delegate whenever useful, without my asking: subagents, delegated tasks, sub-threads, parallel agents or any other form. This is the explicit permission hosts require before spawning.
 - Under T3 Code: call any other model family (Claude, Codex, Gemini/Neon) through T3's own delegation (`delegate_task`). For Neon, use the Antigravity provider (effort via `thought_level`), never OpenCode's Vercel gateway (metered).
 - Outside T3 Code (standalone CLI), one skill per family; your own family runs natively (Claude Code's Agent tool, Codex's subagents):
   - Calling Claude: through the `call-claude` skill.
@@ -63,9 +64,9 @@ Two tiers. Scores compare models within the same tier only.
 
 ## Review loops
 
-- Classify each finding: **fix** (real and reachable: name the concrete user path), **record** (real but unreachable or trivial: list it in the report, no code), **reject** (not a defect). No user path, no fix.
+- Classify each finding: **fix** (valid: name the user path that reaches it; it need not have happened yet, and small still counts) or **drop** (not a defect, or no user path reaches it: not mentioned anywhere). There is no third bucket.
 - Give reviewers the product constraints with the code. A scenario that breaks a constraint we enforce elsewhere is out of scope; one that breaks a constraint we don't enforce is a finding about the missing constraint, not the handler.
-- At most two review passes per change set, unless a skill sets its own stop rule (e.g. `council N`). After the second, record what is left; fix only regressions caused by the fixes, then stop.
-- If the second pass finds defects in the same mechanism, stop adding guards: propose the upstream constraint that makes the scenario impossible (e.g. one subscription per account) and wait for my call.
-- Ready to deploy when every open finding is "record" and tests are green, even if the reviewer still says "needs-attention" (adversarial reviewers always do). Say what was recorded.
-- When the loop ends, report its cost: passes, agents, files touched, fixed vs recorded.
+- At most two review passes per change set, unless a skill sets its own stop rule (e.g. `council N`). After the second, fix what is still valid without another review pass, verify it (tests, typecheck), then stop.
+- If the second pass finds defects in the same mechanism, stop adding guards: propose the upstream constraint that makes the scenario impossible and ask me in this turn, with your recommendation.
+- Ready to deploy when every valid finding is fixed and tests are green, even if the reviewer still says "needs-attention" (adversarial reviewers always do).
+- When the loop ends, report its cost: passes, agents, files touched, findings fixed.

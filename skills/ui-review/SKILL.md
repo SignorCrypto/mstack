@@ -24,7 +24,7 @@ Evaluate the UI of <surface> in <product>.
 The owner wants it <owner's own words, quoted as given, e.g. "pulita, intuitiva, un po' innovativa e davvero bella">.
 The screenshots are in this folder, each with a .txt holding its visible text: <folder>
 Open and look at every PNG with your image tool. If you cannot see images, say so on the first line. The data is test data.
-<ui-review N, from round 2: Already decided, do not raise again: <point - recorded/rejected - reason>.>
+<ui-review N, from round 2: Already decided, do not raise again: <point - dropped - reason>.>
 Be thorough in the analysis and bold in the proposals.
 Answer in <user's language> with:
 1. A score from 1 to 10.
@@ -37,7 +37,7 @@ Add a focus line only when the user names one ("Focus on the node sheet").
 
 ## After a round
 - Synthesis as in council.
-- Verify a finding in the code or the pixels before fixing it. A structural or engine change is the user's call: propose it, do not decide it.
+- Verify a finding in the code or the pixels before fixing it. A structural or engine change is the user's call: ask it in this turn with your recommendation, do not decide it. Drop what is not valid without mentioning it.
 - The user's taste and words override every evaluator. Product terms follow the glossary even when an evaluator proposes another word.
 - Fix in parallel by disjoint file area (Opus implements), then verify yourself: typecheck, tests, fresh captures. The fresh captures are the next round's set: same viewport, same data.
 

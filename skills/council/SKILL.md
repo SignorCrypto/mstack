@@ -34,7 +34,7 @@ Give me your opinion on <subject>.
 Context: <what it is, who it is for, what it must achieve, facts only>.
 <Code only: Constraints enforced elsewhere: <product constraints, e.g. one subscription per account>. A scenario that breaks one of these is out of scope.>
 <Only if the user gave one: Focus on <focus>.>
-<council N, from round 2: Already decided, do not raise again: <point - recorded/rejected - reason>.>
+<council N, from round 2: Already decided, do not raise again: <point - dropped - reason>.>
 Material: <absolute paths>. Read all of it; open images with your image tool, and say so on the first line if you cannot see them.
 Be thorough in the analysis and direct in the judgment.
 Answer in <user's language>, exactly in this format:
@@ -57,21 +57,20 @@ In the user's language:
 
 ## Loop (`council N` only)
 
-1. After the synthesis, triage every point: **fix** (real, reached by a user path you can name), **record** (real but unreachable or trivial), **reject** (not a defect, or outside the subject). Apply the fixes, then verify them yourself (typecheck, tests, build).
+1. After the synthesis, triage every point: **fix** (valid: reached by a user path you can name, even if not yet observed) or **drop** (not a defect, unreachable, or outside the subject; never reported). Apply the fixes, then verify them yourself (typecheck, tests, build).
 2. Each new round uses new delegates, never a follow-up message to the old ones: same brief on the updated material, plus the "Already decided" line. No earlier scores, no list of what you fixed, no opinion of yours.
-3. Keep the scope. Fixes stay inside the subject as given; a point that asks for a new feature or a redesign is recorded and put to the user, not implemented.
+3. Keep the scope. Fixes stay inside the subject as given; a point that asks for a new feature or a redesign is asked to the user in this turn, with your recommendation, not implemented unasked.
 4. After every round, update the report (see Report) and, if a PR is open, the score table in its description (edit it, do not post a comment).
 5. Stop when every member scores at least N; `no score` counts as below N. Also stop and ask the user when two rounds in a row raise no member's score, or when the same-spot rule in the global rules fires. This stop rule replaces the global review budget.
-6. Final reply: the score table, fixed versus recorded, rounds and agents used, files touched, and the report path.
+6. Final reply: the score table, what was fixed, rounds and agents used, files touched, and the report path.
 
 ## Report (`council N` only)
 
-Keep one HTML report per run at `<scratchpad>/council/<subject-slug>/report.html`, with its images in the same folder. It lives for the run only. It is the loop's state: build the "Already decided" line from it. Update it after every round; in T3 show it with `html_preview` then `html_render`, elsewhere give its path.
+Keep one HTML report per run at `<scratchpad>/council/<subject-slug>/report.html`, with its images in the same folder. It lives for the run only. Dropped points are not in the report: keep them in `dropped.md` in the same folder, only to build the "Already decided" line. Update it after every round; in T3 show it with `html_preview` then `html_render`, elsewhere give its path.
 
 Contents:
 1. Subject, target N, members with model id.
 2. Scores: one row per round, one column per member, with the change from the previous round; `no score` stays as such.
 3. Per round:
    - Changes made: what changed, why, and who identified it (the member names, or `orchestrator` for what you found yourself, before a round or while verifying).
-   - Recorded and rejected points: what, who raised it, why it was not fixed.
-4. Close: rounds, agents, files touched, fixed versus recorded.
+4. Close: rounds, agents, files touched, points fixed.

@@ -39,5 +39,5 @@ The spec format is at the top of `scripts/annotate.py`. Rules for the marks:
 
 ## 5. Report
 - Embed each composite in the reply with its absolute path (`![Chat prima e dopo](/abs/path/01-chat.png)`) and give it a one-line caption with the headline gain.
-- After the images, briefly: what changed, the verification (typecheck, tests), what was recorded but not done, and the proposals left for the user to decide.
+- After the images, briefly: what changed, the verification (typecheck, tests), and any step that needs the user's consent, asked as a question with your recommendation. Nothing is listed as left open.
 - The images are the main content. Don't repeat in text what a legend already says.
