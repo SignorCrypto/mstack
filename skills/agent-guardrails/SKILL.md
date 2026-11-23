@@ -1,9 +1,11 @@
 ---
-name: poteto-guardrails
-description: Poteto's guidelines for shipping agent-written code fast without losing quality ("turn slop into gold") - invest in the agents' environment so you can trust them: a pristine codebase, deterministic checks instead of prose rules, verification artifacts, and only then automation. Use when asked to improve a codebase for agents, after correcting an agent's mistake, or when the user mentions Poteto, guardrails, slop or a software factory.
+name: agent-guardrails
+description: Guidelines, inspired by Poteto, for shipping agent-written code fast without losing quality ("turn slop into gold") - invest in the agents' environment so you can trust them: a pristine codebase, deterministic checks instead of prose rules, verification artifacts, and only then automation. Use when asked to improve a codebase for agents, after correcting an agent's mistake, or when the user mentions Poteto, guardrails, slop or a software factory.
 ---
 
-# Poteto guardrails
+# Agent guardrails
+
+Inspired by Poteto's "turn slop into gold" approach.
 
 The job of an engineer working with agents is to keep or raise code quality while massively increasing throughput. That comes from **trust**: not blind trust, but an environment where you can trust agents to do the right thing by default.
 

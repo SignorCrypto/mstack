@@ -25,7 +25,7 @@ Preview changes first with `-s -- --dry-run`. Run the same command again to upda
 | [`ui-review`](skills/ui-review/SKILL.md) | UI | Multi-model UI/UX review from real app captures |
 | [`ui-before-after`](skills/ui-before-after/SKILL.md) | UI | Annotated before/after screenshots with measured gains |
 | [`decision-model`](skills/decision-model/SKILL.md) | Workflow | Fast semantic triage over large text collections |
-| [`poteto-guardrails`](skills/poteto-guardrails/SKILL.md) | Workflow | Guardrails for trusting agent-written code |
+| [`agent-guardrails`](skills/agent-guardrails/SKILL.md) | Workflow | Guardrails for trusting agent-written code (inspired by Poteto) |
 | [`vercel-wait-deploy`](skills/vercel-wait-deploy/SKILL.md) | Workflow | Wait for a commit's Vercel builds without polling |
 
 ## Decision-model MCP
