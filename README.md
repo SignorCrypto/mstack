@@ -46,7 +46,7 @@ Providers, ZDR policy, routing, and key sources: [mcp/decision-model/README.md](
 
 - **Problem-first workflow** — root-cause reasoning, extending existing code over forking variants, before/after visuals, measured optimizations
 - **Model routing** — cost/intelligence/taste matrix, default roles, and how to delegate across Claude, Codex, and Gemini Neon (T3 Code's delegation, or the `call-*` skills from a standalone CLI)
-- **Tool & review discipline** — when to use triage, blocking waits instead of polling, and bounded two-pass review loops
+- **Tool & review discipline** — when to use triage, blocking waits instead of polling, where to run work (other machines, listed in a private `~/.agents/local/machines.md`), and bounded two-pass review loops
 
 They are **not installed by default**. Read and adapt them for your own setup, or link them directly with `--personal`:
 
