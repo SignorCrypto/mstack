@@ -60,7 +60,7 @@ Two tiers. Scores compare models within the same tier only.
 
 - Raster images (photo, illustration, texture, sprite): generate them with Codex's image tool (from Codex itself, its built-in `image_gen`; from any other CLI, the `call-codex` image wrapper). Layouts, SVG, icons and diagrams stay with you.
 - Triage of many text items: when a query, file or search gives you more free-text items than you want to read through (roughly 50+ distinct log or error messages, emails, tickets, comments, review findings, records), you can write them to a file in /tmp and have the decision model label them (`decision-model` MCP, `Evaluate` with `items_file`; load the `decision-model` skill first), then read only the shortlist. Your call: use it when the labels save you reading. Not for code search hits, already aggregated output, or your own decisions (diagnosis, fix, design, next step).
-- Other machines: if `~/.agents/local/machines.md` exists, read it before choosing where to run work (builds, tests, long or heavy jobs); it lists my machines, how to reach them and what each is for.
+- Other machines: if `~/.agents/fleet/machines.md` exists, read it before choosing where to run work (builds, tests, long or heavy jobs); it lists my machines, how to reach them and what each is for.
 - Waiting on external state: one blocking call that exits on completion, never loops that poll output text. Vercel builds: `vercel-wait-deploy`.
 
 ## Review loops
