@@ -6,7 +6,7 @@ argument-hint: "[sol|astra] <task, or 'review' / 'adversarial review' / 'image'>
 
 # Call Codex
 
-Every rule for calling Codex lives here. Other skills and the global rules point to this file and do not repeat it. Under T3 Code, use T3's delegation instead (Codex provider, effort option `reasoningEffort`, Fast tier `serviceTier: "priority"`).
+Every rule for calling Codex lives here. Other skills and the global rules point to this file and do not repeat it. Under T3 Code, use T3's delegation instead (Codex provider, effort option `reasoningEffort` `high`, Fast tier `serviceTier: "priority"` on for `sol` and off for anything else, the same defaults as the launcher below).
 
 All calls go through the local launcher, which applies the defaults and refuses what is forbidden, so this file only says when and what to call. It needs only the Codex CLI, signed in (`codex` once in a terminal):
 
